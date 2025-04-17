@@ -1,0 +1,76 @@
+{
+  "name": "npr-cds-contentful",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@contentful/app-sdk": "^4.22.0",
+    "@contentful/f36-components": "4.45.0",
+    "@contentful/f36-tokens": "4.0.2",
+    "@contentful/react-apps-toolkit": "1.2.16",
+    "contentful-management": "^11.27.0",
+    "emotion": "10.0.27",
+    "graphql-yoga": "^5.13.3",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build && npm run build:functions",
+    "build:functions": "contentful-app-scripts build-functions --ci",
+    "preview": "vite preview",
+    "test": "vitest",
+    "create-app-definition": "contentful-app-scripts create-app-definition",
+    "add-locations": "contentful-app-scripts add-locations",
+    "upload": "contentful-app-scripts upload --bundle-dir ./build",
+    "upload-ci": "contentful-app-scripts upload --ci --host api.contentful.com --bundle-dir ./build --organization-id $CONTENTFUL_ORG_ID --definition-id $CONTENTFUL_APP_DEF_ID --token $CONTENTFUL_ACCESS_TOKEN",
+    "prettier": "prettier --write functions",
+    "open-settings": "contentful-app-scripts open-settings",
+    "install-app": "contentful-app-scripts install",
+    "create-resource-entities": "CONTENTFUL_HOST=api.contentful.com tsx -r dotenv/config ./src/tools/create-resource-entities.ts",
+    "show-resource-entities": "CONTENTFUL_HOST=api.contentful.com tsx -r dotenv/config ./src/tools/show-resource-entities.ts",
+    "prepare": "husky"
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@contentful/app-scripts": "^2.3.0",
+    "@contentful/node-apps-toolkit": "^3.13.0",
+    "@eslint/js": "^9.24.0",
+    "@testing-library/jest-dom": "5.16.5",
+    "@testing-library/react": "14.0.0",
+    "@tsconfig/create-react-app": "2.0.0",
+    "@tsconfig/recommended": "^1.0.3",
+    "@types/jest": "29.5.2",
+    "@types/node": "^22.13.10",
+    "@types/react": "18.2.14",
+    "@types/react-dom": "18.2.6",
+    "@typescript-eslint/eslint-plugin": "^8.29.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "cross-env": "7.0.3",
+    "dotenv": "^16.4.7",
+    "eslint": "^9.24.0",
+    "globals": "^16.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.1",
+    "prettier": "3.2.5",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.29.1"
+  },
+  "homepage": "."
+}

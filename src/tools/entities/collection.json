@@ -1,0 +1,13 @@
+{
+  "sys": { "id": "NPR:Collection" },
+  "name": "Collection",
+  "defaultFieldMapping": {
+    "title": "{ /title }",
+    "subtitle": "{ /subtitle }",
+    "externalUrl": "{ /externalUrl }",
+    "image": {
+      "url": "{ /image/url }",
+      "altText": "{ /image/altText }"
+    }
+  }
+}
