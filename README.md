@@ -54,7 +54,7 @@ query {
             urlTemplate
           }
           # Retrieve stories from the collection
-          items {
+          items(limit: 50, skip: 100) {
             id
             urn
             description
@@ -89,7 +89,9 @@ Currently, Programs are the only supported collections and the Program data that
 * `publishDateTime`
 * `externalUrl` the canonical web page
    `image`, which attempts to find the primary image in a scalable format, and provides the properties `url`, `altText`, a `scalable` boolean, and a `urlTemplate` for generating image scales if the image is scalable.
-* `items` an array of Story objects with the `has-images` profile, `publishDateTime` values in the past, sorted using NPR's `editorial` sort.
+* `items` contains an array of Story objects with `publishDateTime` values in the past. You may optionally pass, `sort`, `limit`, and `skip` parameters to `items` to provide pagination (sort defaults to "editorial"). Additionally you can restrict the stories to those that have images (on by default) by passing `requireImages` and those that have audio using `requireAudio`.
+
+See the NPR API [Valid `sort` Types](https://npr.github.io/content-distribution-service/api-reference/core-concepts/querying/#valid-sort-types) of a list of sort options.
 
 All of these properties except for `id` and `urn` are optional for Collections/Programs.
 

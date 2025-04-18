@@ -186,11 +186,9 @@ export const storyLookupForStory = (story: Story): StoryLookupResponse => {
   } as StoryLookupResponse;
 };
 
-export const collectionLookupForCollection = async (
-  collection: Collection,
-  token: string,
-  withItems: boolean = false
-): Promise<CollectionQueryResponse> => {
+export const collectionLookupForCollection = (
+  collection: Collection
+): CollectionQueryResponse => {
   const urn = `/v1/documents/${collection.id}`;
   const collectionLookup = {
     urn,
@@ -209,21 +207,6 @@ export const collectionLookupForCollection = async (
     collectionLookup.image = preferredImageForItem(collection);
   } else {
     collectionLookup.title = `NPR Collection ${collection.id}`;
-  }
-  if (withItems) {
-    // Only get published stories with images
-    const query = new URLSearchParams({
-      collectionIds: collection.id,
-      profileIds: "story",
-      publishDateTime: `...${new Date().toJSON()}`,
-      sort: "editorial",
-      limit: "40",
-    });
-    query.append("profileIds", "has-images");
-    const storyItems = await queryCDS(query, token);
-    collectionLookup.items = storyItems.map((story: Story) => {
-      return storyLookupForStory(story);
-    });
   }
   return collectionLookup;
 };

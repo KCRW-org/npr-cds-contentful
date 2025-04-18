@@ -1,7 +1,11 @@
 import type { FunctionEventContext } from "@contentful/node-apps-toolkit";
 import { QueryHandler } from "./types";
 import { createSchema, createYoga } from "graphql-yoga";
-import { fetchCollection, fetchStory } from "../src/lib/fetch";
+import {
+  fetchCollection,
+  fetchCollectionItems,
+  fetchStory,
+} from "../src/lib/fetch";
 import { GraphQLError } from "graphql";
 
 const typeDefs = `
@@ -37,12 +41,12 @@ type Collection {
   description: String
   externalUrl: String
   image: Image
-  items: [Story]
+  items(sort: String, limit: Int, skip: Int, requireImages: Boolean, requireAudio: Boolean): [Story]
 }
 
 type Query {
-  collection(urn: String): Collection
-  story(urn: String): Story
+  collection(urn: String!): Collection
+  story(urn: String!): Story
 }`;
 
 const schema = createSchema({
@@ -54,17 +58,13 @@ const schema = createSchema({
           return;
         }
         try {
-          return await fetchCollection(
-            urn,
-            context.appInstallationParameters,
-            true
-          );
+          return await fetchCollection(urn, context.appInstallationParameters);
         } catch (e) {
           console.log(e);
           throw new GraphQLError(`Error fetching collection ${urn}`);
         }
       },
-      story: async (_parent, { urn }, context) => {
+      story: async (_parent, { urn }, context: FunctionEventContext) => {
         if (!urn) {
           return;
         }
@@ -74,6 +74,29 @@ const schema = createSchema({
           console.log(e);
           throw new GraphQLError(`Error fetching story ${urn}`);
         }
+      },
+    },
+    Collection: {
+      items: async (
+        collection,
+        {
+          sort = "editorial",
+          limit = 20,
+          skip = 0,
+          requireImages = true,
+          requireAudio = false,
+        },
+        context: FunctionEventContext
+      ) => {
+        return await fetchCollectionItems(
+          collection.id,
+          context.appInstallationParameters,
+          sort,
+          limit,
+          skip,
+          requireImages,
+          requireAudio
+        );
       },
     },
   },

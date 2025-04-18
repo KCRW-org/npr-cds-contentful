@@ -35,8 +35,7 @@ export const fetchStoryById = async (
 
 export const fetchCollection = async (
   urn: string,
-  appParams: AppInstallationParameters,
-  withItems: boolean = false
+  appParams: AppInstallationParameters
 ): Promise<CollectionQueryResponse | undefined> => {
   const { cdsAccessToken } = appParams;
   if (!cdsAccessToken) {
@@ -45,20 +44,15 @@ export const fetchCollection = async (
   const collection = (
     (await fetchByURN(urn, cdsAccessToken)) as Collection[]
   )[0];
-  return await collectionLookupForCollection(
-    collection,
-    cdsAccessToken,
-    withItems
-  );
+  return collectionLookupForCollection(collection);
 };
 
 export const fetchCollectionById = async (
   id: string,
-  appParams: AppInstallationParameters,
-  withItems: boolean = false
+  appParams: AppInstallationParameters
 ): Promise<StoryLookupResponse | undefined> => {
   const urn = `/v1/documents/${id}`;
-  return await fetchCollection(urn, appParams, withItems);
+  return await fetchCollection(urn, appParams);
 };
 
 export const fetchMultipleStories = async (
@@ -90,13 +84,41 @@ export const fetchMultipleCollections = async (
   ).join(",");
   const query = new URLSearchParams({ ids });
   const collections = await queryCDS(query, cdsAccessToken);
-  const results = [];
-  for (const collection of collections) {
-    results.push(
-      await collectionLookupForCollection(collection, cdsAccessToken)
-    );
+  return collections.map(collectionLookupForCollection);
+};
+
+export const fetchCollectionItems = async (
+  collectionId: string,
+  appParams: AppInstallationParameters,
+  sort: string = "editorial",
+  limit: number = 20,
+  skip: number = 0,
+  requireImages: boolean = true,
+  requireAudio: boolean = false
+): Promise<StoryLookupResponse[] | undefined> => {
+  const { cdsAccessToken } = appParams;
+  if (!cdsAccessToken) {
+    return;
   }
-  return results;
+  // Only get published stories with images
+  const query = new URLSearchParams({
+    collectionIds: collectionId,
+    profileIds: "story",
+    publishDateTime: `...${new Date().toJSON()}`,
+    sort: sort,
+    limit: limit.toString(),
+    offset: skip.toString(),
+  });
+  if (requireImages) {
+    query.append("profileIds", "has-images");
+  }
+  if (requireAudio) {
+    query.append("profileIds", "has-audio");
+  }
+  const storyItems = await queryCDS(query, cdsAccessToken);
+  return storyItems.map((story: Story) => {
+    return storyLookupForStory(story);
+  });
 };
 
 export const listStories = async (
@@ -149,12 +171,7 @@ export const listPrograms = async (
   if (!collections) {
     return [];
   }
-  const results = [];
-  for (const collection of collections) {
-    results.push(
-      await collectionLookupForCollection(collection, cdsAccessToken)
-    );
-  }
+  const results = collections.map(collectionLookupForCollection);
   results.sort((a, b) => {
     const aTitle = (a.title || a.id).toLowerCase();
     const bTitle = (b.title || b.id).toLowerCase();
