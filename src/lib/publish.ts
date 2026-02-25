@@ -494,7 +494,8 @@ export const buildCdsDocument = (
   }
 
   const layoutRefs: Reference[] = [];
-  if (layout && image?.url) {
+  // Add the image at the start if we have any other content
+  if (layout && layout.refs.length > 0 && image?.url) {
     layoutRefs.push({ href: `#/assets/img-${safeEntryId}` });
   }
   if (layout) {

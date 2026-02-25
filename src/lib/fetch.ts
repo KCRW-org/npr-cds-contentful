@@ -178,8 +178,8 @@ export const listPrograms = async (
     collectionLookupForCollection
   );
   results.sort((a, b) => {
-    const aTitle = (a.title || a.id).toLowerCase();
-    const bTitle = (b.title || b.id).toLowerCase();
+    const aTitle = (a.title || a.nprId).toLowerCase();
+    const bTitle = (b.title || b.nprId).toLowerCase();
     if (aTitle < bTitle) {
       return -1;
     }

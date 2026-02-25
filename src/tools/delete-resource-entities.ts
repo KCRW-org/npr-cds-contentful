@@ -1,5 +1,5 @@
 import { deleteResourceProvider, deleteResourceType } from "./http";
-import { npr, story, collection } from "./imports";
+import { story, collection } from "./imports";
 
 const main = async () => {
   const [collectionResourceType] = await Promise.all([

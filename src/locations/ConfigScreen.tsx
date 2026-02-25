@@ -58,7 +58,7 @@ const ConfigScreen = () => {
         <FormControl isRequired isInvalid={!parameters.cdsAccessToken}>
           <FormControl.Label>API token</FormControl.Label>
           <TextInput
-            value={parameters.cdsAccessToken}
+            value={parameters.cdsAccessToken || ""}
             name="cdsAccessToken"
             onChange={updateParameters("cdsAccessToken")}
           />

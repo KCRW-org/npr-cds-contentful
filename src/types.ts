@@ -30,8 +30,8 @@ export type ResolvedEmbedEntry =
 
 export type PublishActionBody = {
   entryId: string;
-  submitToNprOneLocal: boolean;
-  submitToNprOneFeatured: boolean;
+  submitToNprOneLocal?: boolean;
+  submitToNprOneFeatured?: boolean;
 };
 
 export type PublishActionResult = {

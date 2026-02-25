@@ -29,12 +29,16 @@ const {
   AUDIO_EMBED_URL_TEMPLATE: audioEmbedUrlTemplate,
   LOCALE: locale = "en-US",
   RECOMMEND_UNTIL_DAYS: recommendUntilDaysRaw,
-  ENABLE_LAYOUT: enableLayout = false,
+  ENABLE_LAYOUT: enableLayoutRaw = "false",
 } = process.env;
 
 const recommendUntilDays = recommendUntilDaysRaw
   ? Number(recommendUntilDaysRaw)
   : undefined;
+
+const enableLayout = ["true", "1", "on", 1, true].includes(
+  enableLayoutRaw?.toLowerCase?.() || ""
+);
 
 if (!accessToken) {
   console.error("CONTENTFUL_ACCESS_TOKEN is required");

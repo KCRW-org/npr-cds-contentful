@@ -5,7 +5,7 @@ export const dummyResource = (
   resourceType: string = "story"
 ) => {
   return {
-    id: id.toString(),
+    nprId: id.toString(),
     urn: `/v1/${resourceType}/${id}`,
     title: `${resourceType} Title ${id}`,
   };
