@@ -8,7 +8,8 @@ export type Reference = {
 };
 
 export type ResourceLookupResponse = {
-  id: string;
+  nprId: string;
+  sys: { id: string };
   urn: string;
   title?: string;
   subtitle?: string;

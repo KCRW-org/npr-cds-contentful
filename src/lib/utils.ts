@@ -174,8 +174,9 @@ export const queryCDS = async (
 export const storyLookupForStory = (story: Story): StoryLookupResponse => {
   const urn = `/v1/documents/${story.id}`;
   return {
+    nprId: story.id,
+    sys: { id: urn },
     urn,
-    id: story.id,
     title: story.title,
     subtitle: story.subtitle || story.shortTeaser,
     description: story.teaser,
@@ -191,8 +192,9 @@ export const collectionLookupForCollection = (
 ): CollectionQueryResponse => {
   const urn = `/v1/documents/${collection.id}`;
   const collectionLookup = {
+    nprId: collection.id,
+    sys: { id: urn },
     urn,
-    id: collection.id,
   } as CollectionQueryResponse;
   if (
     collection.profiles?.find(
