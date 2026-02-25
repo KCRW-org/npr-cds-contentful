@@ -41,7 +41,7 @@ type Collection {
   description: String
   externalUrl: String
   image: Image
-  items(sort: String, limit: Int, skip: Int, requireImages: Boolean, requireAudio: Boolean): [Story]
+  items(sort: String, limit: Int, skip: Int, profile: String, requireImages: Boolean, requireAudio: Boolean): [Story]
 }
 
 type Query {
@@ -83,6 +83,7 @@ const schema = createSchema({
           sort = "editorial",
           limit = 20,
           skip = 0,
+          profile = "story",
           requireImages = true,
           requireAudio = false,
         },
@@ -94,6 +95,7 @@ const schema = createSchema({
           sort,
           limit,
           skip,
+          profile,
           requireImages,
           requireAudio
         );

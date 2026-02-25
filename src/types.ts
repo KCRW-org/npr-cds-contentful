@@ -1,5 +1,74 @@
 export type AppInstallationParameters = {
   cdsAccessToken?: string;
+  nprServiceId?: string;
+  cdsEnvironment?: "production" | "staging";
+  cdsDocumentPrefix?: string;
+  canonicalUrlTemplate?: string;
+  audioEmbedUrlTemplate?: string;
+  locale?: string;
+  recommendUntilDays?: number;
+  enableLayout?: boolean;
+};
+
+export type ResolvedImage = {
+  url: string;
+  altText?: string;
+  width?: number;
+  height?: number;
+  focusHint?: string;
+  caption?: string;
+  producer?: string;
+  provider?: string;
+};
+
+export type ResolvedEmbedEntry =
+  | ({ type: "image" } & ResolvedImage)
+  | { type: "audio"; url: string; duration?: number }
+  | { type: "youtube"; videoId: string }
+  | { type: "html"; html: string }
+  | { type: "unknown" };
+
+export type PublishActionBody = {
+  entryId: string;
+  submitToNprOneLocal: boolean;
+  submitToNprOneFeatured: boolean;
+};
+
+export type PublishActionResult = {
+  success: boolean;
+  documentId?: string;
+  documentUrl?: string;
+  error?: string;
+};
+
+export type DeleteActionBody = {
+  action: "delete";
+  entryId: string;
+};
+
+export type DeleteActionResult = {
+  success: boolean;
+  error?: string;
+};
+
+export type CdsStoryDocumentInput = {
+  id: string;
+  title: string;
+  teaser?: string;
+  publishDateTime?: string;
+  recommendUntilDateTime?: string;
+  nprDisplayType?: string;
+  profiles: Array<{ href: string; rels?: string[] }>;
+  collections: Array<{ href: string; rels: string[] }>;
+  owners: Array<{ href: string }>;
+  brandings: Array<{ href: string }>;
+  authorizedOrgServiceIds?: string[];
+  webPages?: Array<{ href: string; rels: string[] }>;
+  images?: Array<{ href: string; rels: string[] }>;
+  audio?: Array<{ href: string; rels: string[] }>;
+  bylines?: Array<{ href: string }>;
+  layout?: Reference[];
+  assets: Record<string, unknown>;
 };
 
 export type Reference = {

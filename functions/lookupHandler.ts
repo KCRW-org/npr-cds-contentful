@@ -1,4 +1,3 @@
-import { ResourcesLookupResponse } from "@contentful/node-apps-toolkit";
 import { ResourcesLookupHandler } from "./types";
 import { CollectionQueryResponse, StoryLookupResponse } from "../src/types";
 import {
@@ -32,5 +31,5 @@ export const lookupHandler: ResourcesLookupHandler = async (event, context) => {
   return {
     items,
     pages: {},
-  } as ResourcesLookupResponse;
+  };
 };

@@ -20,3 +20,7 @@ export type ResourcesSearchHandler =
   FunctionEventHandler<FunctionTypeEnum.ResourcesSearch>;
 export type ResourcesLookupHandler =
   FunctionEventHandler<FunctionTypeEnum.ResourcesLookup>;
+export type AppActionHandler = FunctionEventHandler<
+  FunctionTypeEnum.AppActionCall,
+  AppInstallationParameters
+>;

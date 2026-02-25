@@ -7,7 +7,8 @@ import {
   StoryLookupResponse,
 } from "../types";
 
-const NPR_CDS_BASE = "https://content.api.npr.org";
+export const NPR_CDS_PROD = "https://content.api.npr.org";
+export const NPR_CDS_STAGING = "https://stage-content.api.npr.org";
 const IMAGE_PREFERENCE = ["primary", "promo-image-brick", "thumbnail"];
 const SCALE_PREFERENCES = ["scalable", "image-brick", "image-wide", "primary"];
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -24,12 +25,18 @@ export const idFromURN = (urn: string) => {
   return urn.split("/").pop();
 };
 
-export const fetchByURN = async (urn: string, token: string) => {
+export const fetchByURN = async (
+  urn: string,
+  token: string,
+  environment: string | undefined
+) => {
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
-  const apiUrl = NPR_CDS_BASE + urn;
+  const base_url =
+    environment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
+  const apiUrl = base_url + urn;
   const response = await fetch(apiUrl, {
     headers,
   });
@@ -153,6 +160,7 @@ const canonicalLink = (item: Story | Collection): string | undefined => {
 export const queryCDS = async (
   query: URLSearchParams,
   token: string,
+  environment: string | undefined,
   requireImages: boolean = false
 ) => {
   const headers = {
@@ -163,7 +171,9 @@ export const queryCDS = async (
   if (requireImages) {
     queryString += "&profileIds=has-images";
   }
-  const apiUrl = NPR_CDS_BASE + "/v1/documents?" + queryString;
+  const base_url =
+    environment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
+  const apiUrl = base_url + "/v1/documents?" + queryString;
   const response = await fetch(apiUrl, {
     headers,
   });

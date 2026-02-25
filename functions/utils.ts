@@ -13,7 +13,7 @@ export const dummyResource = (
 
 export const dummyStory = (id: number | string) => {
   const resource = dummyResource(id) as StoryLookupResponse;
-  resource.subTitle = `Story Sub-Title ${id}`;
+  resource.subtitle = `Story Sub-Title ${id}`;
   resource.description = `Story teaser text ${id}`;
   resource.publishDateTime = "2025-04-09T12:00:00Z";
   resource.externalUrl = `https://www.example.com/story/${id}`;

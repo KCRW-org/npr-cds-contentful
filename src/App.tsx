@@ -1,10 +1,12 @@
 import React, { useMemo } from "react";
 import { locations } from "@contentful/app-sdk";
 import ConfigScreen from "./locations/ConfigScreen";
+import EntrySidebar from "./locations/EntrySidebar";
 import { useSDK } from "@contentful/react-apps-toolkit";
 
 const ComponentLocationSettings = {
   [locations.LOCATION_APP_CONFIG]: ConfigScreen,
+  [locations.LOCATION_ENTRY_SIDEBAR]: EntrySidebar,
 };
 
 const App = () => {
