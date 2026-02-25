@@ -22,7 +22,7 @@ type Audio {
 }
 
 type Story {
-  id: String!
+  nprId: String!
   urn: String!
   publishDateTime: String
   title: String
@@ -34,7 +34,7 @@ type Story {
 }
 
 type Collection {
-  id: String!
+  nprId: String!
   urn: String!
   title: String
   subtitle: String
