@@ -90,7 +90,7 @@ const schema = createSchema({
         context: FunctionEventContext
       ) => {
         return await fetchCollectionItems(
-          collection.id,
+          collection.nprId,
           context.appInstallationParameters,
           sort,
           limit,

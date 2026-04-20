@@ -59,7 +59,10 @@ const preferredImageForItem = (
     if (!imageId) {
       continue;
     }
-    const imageAsset = item.assets[imageId] as Image;
+    const imageAsset = item.assets[imageId] as Image | undefined;
+    if (!imageAsset?.enclosures) {
+      continue;
+    }
     resultImage = {
       altText: imageAsset.altText || imageAsset.title,
       url: "",
@@ -114,7 +117,10 @@ const preferredAudioForStory = (story: Story): StoryLookupResponse["audio"] => {
     if (!audioId) {
       continue;
     }
-    const audioAsset = story.assets[audioId] as Audio;
+    const audioAsset = story.assets[audioId] as Audio | undefined;
+    if (!audioAsset?.enclosures) {
+      continue;
+    }
     if (
       !(
         audioAsset.isAvailable &&
