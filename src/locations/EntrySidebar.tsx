@@ -159,6 +159,7 @@ const EntrySidebar = () => {
   ]);
 
   useEffect(() => {
+    let cancelled = false;
     cma.appActionCall
       .createWithResponse(
         {
@@ -170,6 +171,7 @@ const EntrySidebar = () => {
         { parameters: { action: "checkStatus", entryId: sdk.ids.entry } }
       )
       .then(result => {
+        if (cancelled) return;
         const body = JSON.parse(result.response.body) as {
           published: boolean;
           collectionIds?: string[];
@@ -186,7 +188,12 @@ const EntrySidebar = () => {
           );
         }
       })
-      .catch(() => setCdsStatus("unknown"));
+      .catch(() => {
+        if (!cancelled) setCdsStatus("unknown");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [sdk.ids, cma]);
 
   const isPublishedInContentful = entrySys.publishedVersion != null;

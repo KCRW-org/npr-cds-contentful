@@ -233,9 +233,7 @@ const formatErrorBody = (body: unknown): string => {
 };
 
 const formatUnknownError = (err: unknown): string => {
-  if (err instanceof Error) {
-    return err.stack ? `${err.message}\n${err.stack}` : err.message;
-  }
+  if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   if (err && typeof err === "object") {
     try {
