@@ -70,7 +70,12 @@ const buildTextAsset = (id: string, html: string): unknown => ({
   text: html,
 });
 
-const buildImageAsset = (id: string, embed: ResolvedImage): unknown => {
+const buildImageAsset = (
+  id: string,
+  embed: ResolvedImage
+): unknown | undefined => {
+  if (!embed.width || !embed.height) return undefined;
+
   const {
     url,
     altText,
@@ -214,12 +219,14 @@ export const buildLayoutFromRichText = (
         const nonEmpty = (node as Block).content.filter(
           c => !(c.nodeType === "text" && (c as Text).value === "")
         );
-        if (
-          nonEmpty.length === 1 &&
-          nonEmpty[0].nodeType === INLINES.HYPERLINK
-        ) {
-          const linkNode = nonEmpty[0] as Inline;
-          const href = (linkNode.data as Record<string, string>)?.uri ?? "";
+        const linkNode =
+          nonEmpty.length === 1 && nonEmpty[0].nodeType === INLINES.HYPERLINK
+            ? (nonEmpty[0] as Inline)
+            : null;
+        const href = linkNode
+          ? (linkNode.data as Record<string, string>)?.uri
+          : "";
+        if (linkNode && href) {
           const linkText = extractText(
             linkNode.content as Array<Block | Inline | Text>
           );
@@ -272,8 +279,11 @@ export const buildLayoutFromRichText = (
 
         if (embed.type === "image") {
           const id = `layout-image-${imageCount++}`;
-          layoutAssets[id] = buildImageAsset(id, embed);
-          refs.push({ href: `#/assets/${id}` });
+          const asset = buildImageAsset(id, embed);
+          if (asset) {
+            layoutAssets[id] = asset;
+            refs.push({ href: `#/assets/${id}` });
+          }
         } else if (embed.type === "audio") {
           const id = `layout-audio-${audioCount++}`;
           layoutAssets[id] = buildAudioLayoutAsset(id, embed);
@@ -304,8 +314,11 @@ export const buildLayoutFromRichText = (
         if (!embed || embed.type !== "image") break;
 
         const id = `layout-image-${imageCount++}`;
-        layoutAssets[id] = buildImageAsset(id, embed);
-        refs.push({ href: `#/assets/${id}` });
+        const asset = buildImageAsset(id, embed);
+        if (asset) {
+          layoutAssets[id] = asset;
+          refs.push({ href: `#/assets/${id}` });
+        }
         break;
       }
     }
@@ -385,7 +398,12 @@ export const buildCdsDocument = (
     profiles.push({ href: "/v1/profiles/buildout", rels: ["interface"] });
   }
 
-  if (image?.url) {
+  const imgAssetId = `img-${safeEntryId}`;
+  const primaryImageAsset = image?.url
+    ? buildImageAsset(imgAssetId, image)
+    : undefined;
+
+  if (primaryImageAsset) {
     profiles.push({ href: "/v1/profiles/has-images", rels: ["interface"] });
   }
   if (audio?.url) {
@@ -395,9 +413,8 @@ export const buildCdsDocument = (
 
   const assets: Record<string, unknown> = {};
 
-  if (image?.url) {
-    const imgAssetId = `img-${safeEntryId}`;
-    assets[imgAssetId] = buildImageAsset(imgAssetId, image);
+  if (primaryImageAsset) {
+    assets[imgAssetId] = primaryImageAsset;
   }
 
   if (audio?.url) {
@@ -477,8 +494,8 @@ export const buildCdsDocument = (
   for (const page of additionalWebPages) webPages.push(page);
   if (webPages.length > 0) doc.webPages = webPages;
 
-  if (image?.url) {
-    doc.images = [{ href: `#/assets/img-${safeEntryId}`, rels: ["primary"] }];
+  if (primaryImageAsset) {
+    doc.images = [{ href: `#/assets/${imgAssetId}`, rels: ["primary"] }];
   }
 
   if (audio?.url) {
@@ -495,8 +512,8 @@ export const buildCdsDocument = (
 
   const layoutRefs: Reference[] = [];
   // Add the image at the start if we have any other content
-  if (layout && layout.refs.length > 0 && image?.url) {
-    layoutRefs.push({ href: `#/assets/img-${safeEntryId}` });
+  if (layout && layout.refs.length > 0 && primaryImageAsset) {
+    layoutRefs.push({ href: `#/assets/${imgAssetId}` });
   }
   if (layout) {
     layoutRefs.push(...layout.refs);

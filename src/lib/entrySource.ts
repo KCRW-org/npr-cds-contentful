@@ -134,7 +134,8 @@ export const createDeliveryEntrySource = (config: {
 
   return {
     async prime(id, depth = 3) {
-      const clampedDepth = Math.max(1, Math.min(10, Math.floor(depth)));
+      const safeDepth = Number.isFinite(depth) ? Math.floor(depth) : 3;
+      const clampedDepth = Math.max(1, Math.min(10, safeDepth));
       const data = await apiFetch<CdaEntriesResponse>(
         `${root}/entries?sys.id=${encodeURIComponent(
           id

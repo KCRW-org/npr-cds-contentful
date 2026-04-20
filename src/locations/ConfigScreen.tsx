@@ -19,8 +19,29 @@ const ConfigScreen = () => {
 
   const onConfigure = useCallback(async () => {
     const currentState = await sdk.app.getCurrentState();
+    const normalized: AppInstallationParameters = { ...parameters };
+    if (!normalized.cdsDocumentPrefix?.trim()) {
+      delete normalized.cdsDocumentPrefix;
+    }
+    if (!normalized.locale?.trim()) {
+      sdk.notifier.error("Locale is required.");
+      return false;
+    }
+    normalized.locale = normalized.locale.trim();
+    if (
+      normalized.recommendUntilDays != null &&
+      !Number.isFinite(normalized.recommendUntilDays)
+    ) {
+      delete normalized.recommendUntilDays;
+    }
+    if (
+      normalized.cdaIncludeDepth != null &&
+      !Number.isFinite(normalized.cdaIncludeDepth)
+    ) {
+      delete normalized.cdaIncludeDepth;
+    }
     return {
-      parameters,
+      parameters: normalized,
       targetState: currentState,
     };
   }, [parameters, sdk]);
@@ -172,7 +193,7 @@ const ConfigScreen = () => {
             link.
           </FormControl.HelpText>
         </FormControl>
-        <FormControl>
+        <FormControl isRequired isInvalid={!parameters.locale?.trim()}>
           <FormControl.Label>Locale</FormControl.Label>
           <TextInput
             value={parameters.locale || ""}
@@ -181,9 +202,13 @@ const ConfigScreen = () => {
             placeholder="en-US"
           />
           <FormControl.HelpText>
-            The Contentful locale to read fields from. Defaults to
-            &ldquo;en-US&rdquo;.
+            The Contentful locale to read fields from (e.g. <code>en-US</code>).
           </FormControl.HelpText>
+          {!parameters.locale?.trim() && (
+            <FormControl.ValidationMessage>
+              Please provide a locale.
+            </FormControl.ValidationMessage>
+          )}
         </FormControl>
         <FormControl>
           <FormControl.Label>Recommend Until (days)</FormControl.Label>
