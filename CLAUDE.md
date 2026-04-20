@@ -147,5 +147,9 @@ The `ReadContext = { entrySource: EntrySource }` is passed to all async adapter 
 
 - `src/App.tsx` — routes to `ConfigScreen` or `EntrySidebar` based on `sdk.location`
 - `src/locations/ConfigScreen.tsx` — app installation settings UI
-- `src/locations/EntrySidebar.tsx` — publish/update/delete sidebar; checks CDS publish status on mount via `checkStatus` action; gates publish button on `entrySys.publishedVersion != null`
+- `src/locations/EntrySidebar.tsx` — publish/update/delete sidebar. Checks CDS status on mount via `checkStatus` (returns collection IDs so the UI can warn when an update strips a story from a collection it no longer qualifies for). Publish is gated on `publishedVersion != null` and no unpublished changes (`version <= publishedVersion + 1`). NPR One **Local** requires a minimum body word count; **Featured** requires the linked `audioMedia` entry to be published — since `field.onValueChanged` only fires on local link changes, the audio check also re-runs on `sdk.navigator.onSlideInNavigation` returning to slide level 0 so overlay publish/unpublish refreshes the sidebar. `formatSidebarError()` normalizes rejected app-action calls so UI errors aren't rendered as `[object Object]`.
 - `src/lib/fetch.ts` — CDS read API helpers used by the lookup/search/query handlers
+
+### App action registration (`src/tools/create-app-action.ts`)
+
+`create-app-action[:dev]` is upsert-safe (update, falling back to create on 404), so it can be re-run whenever the action's parameter schema changes. Registered parameters must stay in sync with what the sidebar sends in `cma.appActionCall.createWithResponse` — Contentful rejects unknown fields with a 422 before the function is invoked.

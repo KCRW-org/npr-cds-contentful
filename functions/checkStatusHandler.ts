@@ -31,12 +31,12 @@ export const checkStatusHandler: AppActionHandler = async (event, context) => {
       { headers: { Authorization: `Bearer ${cdsAccessToken}` } }
     );
     if (!response.ok) return { published: false } as CheckStatusResult;
-    const body = (await response.json()) as {
+    const doc = (await response.json()) as {
       resources?: Array<{
         collections?: Array<{ href?: string }>;
       }>;
     };
-    const resource = body.resources?.[0];
+    const resource = doc.resources?.[0];
     const collectionIds = (resource?.collections ?? [])
       .map(c => c.href?.split("/").pop())
       .filter((id): id is string => Boolean(id));
