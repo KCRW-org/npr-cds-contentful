@@ -2,14 +2,15 @@
   "functions": [
     {
       "id": "nprCDSFunction",
-      "name": "NPR CDS lookup function",
-      "description": "Function to look up stories and collections in the NPR CDS",
+      "name": "NPR CDS function",
+      "description": "Handles NPR CDS resource lookup, search, GraphQL queries, and story publish/delete actions",
       "path": "functions/index.js",
       "entryFile": "functions/index.ts",
-      "allowNetworks": ["content.api.npr.org", "api.npr.org"],
+      "allowNetworks": ["content.api.npr.org", "stage-content.api.npr.org", "api.npr.org"],
       "accepts": [
         "resources.search", "resources.lookup",
-        "graphql.resourcetype.mapping","graphql.query"
+        "graphql.resourcetype.mapping","graphql.query",
+        "appaction.call"
       ]
     }
   ]

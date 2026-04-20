@@ -25,7 +25,7 @@ export const searchHandler: ResourcesSearchHandler = async (event, context) => {
   }
   items = items.map(cleanupLookupItem);
   if (items.length >= limit) {
-    pages.nextCursor = (page + 1).toString();
+    pages.nextCursor = (parseInt(page, 10) + 1).toString();
   }
   return {
     items,

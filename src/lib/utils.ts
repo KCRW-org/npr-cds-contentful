@@ -7,7 +7,8 @@ import {
   StoryLookupResponse,
 } from "../types";
 
-const NPR_CDS_BASE = "https://content.api.npr.org";
+export const NPR_CDS_PROD = "https://content.api.npr.org";
+export const NPR_CDS_STAGING = "https://stage-content.api.npr.org";
 const IMAGE_PREFERENCE = ["primary", "promo-image-brick", "thumbnail"];
 const SCALE_PREFERENCES = ["scalable", "image-brick", "image-wide", "primary"];
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -24,12 +25,17 @@ export const idFromURN = (urn: string) => {
   return urn.split("/").pop();
 };
 
-export const fetchByURN = async (urn: string, token: string) => {
+export const fetchByURN = async (
+  urn: string,
+  token: string,
+  environment: string | undefined
+) => {
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
-  const apiUrl = NPR_CDS_BASE + urn;
+  const baseUrl = environment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
+  const apiUrl = baseUrl + urn;
   const response = await fetch(apiUrl, {
     headers,
   });
@@ -53,7 +59,10 @@ const preferredImageForItem = (
     if (!imageId) {
       continue;
     }
-    const imageAsset = item.assets[imageId] as Image;
+    const imageAsset = item.assets[imageId] as Image | undefined;
+    if (!imageAsset?.enclosures) {
+      continue;
+    }
     resultImage = {
       altText: imageAsset.altText || imageAsset.title,
       url: "",
@@ -108,7 +117,10 @@ const preferredAudioForStory = (story: Story): StoryLookupResponse["audio"] => {
     if (!audioId) {
       continue;
     }
-    const audioAsset = story.assets[audioId] as Audio;
+    const audioAsset = story.assets[audioId] as Audio | undefined;
+    if (!audioAsset?.enclosures) {
+      continue;
+    }
     if (
       !(
         audioAsset.isAvailable &&
@@ -153,6 +165,7 @@ const canonicalLink = (item: Story | Collection): string | undefined => {
 export const queryCDS = async (
   query: URLSearchParams,
   token: string,
+  environment: string | undefined,
   requireImages: boolean = false
 ) => {
   const headers = {
@@ -163,7 +176,8 @@ export const queryCDS = async (
   if (requireImages) {
     queryString += "&profileIds=has-images";
   }
-  const apiUrl = NPR_CDS_BASE + "/v1/documents?" + queryString;
+  const baseUrl = environment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
+  const apiUrl = baseUrl + "/v1/documents?" + queryString;
   const response = await fetch(apiUrl, {
     headers,
   });
