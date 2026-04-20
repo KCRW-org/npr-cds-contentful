@@ -175,7 +175,16 @@ const EntrySidebar = () => {
           collectionIds?: string[];
         };
         setCdsStatus(body.published ? "published" : "unpublished");
-        setCdsCollectionIds(body.collectionIds ?? []);
+        const collectionIds = body.collectionIds ?? [];
+        setCdsCollectionIds(collectionIds);
+        // If the story is already in NPR CDS, default the checkboxes to the
+        // collections it's currently a member of so updates preserve state.
+        if (body.published) {
+          setNprOneLocal(collectionIds.includes(NPR_ONE_LOCAL_COLLECTION_ID));
+          setNprOneFeatured(
+            collectionIds.includes(NPR_ONE_FEATURED_COLLECTION_ID)
+          );
+        }
       })
       .catch(() => setCdsStatus("unknown"));
   }, [sdk.ids, cma]);

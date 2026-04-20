@@ -207,6 +207,29 @@ const ConfigScreen = () => {
           </FormControl.HelpText>
         </FormControl>
         <FormControl>
+          <FormControl.Label>CDA Include Depth</FormControl.Label>
+          <TextInput
+            type="number"
+            value={parameters.cdaIncludeDepth?.toString() ?? ""}
+            name="cdaIncludeDepth"
+            onChange={e =>
+              setParameters({
+                ...parameters,
+                cdaIncludeDepth: e.target.value
+                  ? Number(e.target.value)
+                  : undefined,
+              })
+            }
+            placeholder="3"
+          />
+          <FormControl.HelpText>
+            Depth of linked entries/assets to resolve in a single CDA request
+            when publishing. Must cover the deepest link chain from your story
+            content type (body embed → photo → asset is depth 3). Clamped to [1,
+            10]. Defaults to 3.
+          </FormControl.HelpText>
+        </FormControl>
+        <FormControl>
           <Checkbox
             isChecked={parameters.enableLayout ?? false}
             onChange={e =>

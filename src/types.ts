@@ -9,6 +9,12 @@ export type AppInstallationParameters = {
   locale?: string;
   recommendUntilDays?: number;
   enableLayout?: boolean;
+  /**
+   * CDA include depth used when fetching the story entry. Must cover the
+   * deepest link chain your schema follows from the story (e.g. body embed →
+   * photo → asset = depth 3). Clamped to [1, 10] by the CDA. Defaults to 3.
+   */
+  cdaIncludeDepth?: number;
 };
 
 export type ResolvedImage = {

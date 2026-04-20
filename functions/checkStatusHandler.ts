@@ -32,12 +32,9 @@ export const checkStatusHandler: AppActionHandler = async (event, context) => {
     );
     if (!response.ok) return { published: false } as CheckStatusResult;
     const doc = (await response.json()) as {
-      resources?: Array<{
-        collections?: Array<{ href?: string }>;
-      }>;
+      collections?: Array<{ href?: string }>;
     };
-    const resource = doc.resources?.[0];
-    const collectionIds = (resource?.collections ?? [])
+    const collectionIds = (doc.collections ?? [])
       .map(c => c.href?.split("/").pop())
       .filter((id): id is string => Boolean(id));
     return { published: true, collectionIds } as CheckStatusResult;

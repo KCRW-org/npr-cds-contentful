@@ -38,6 +38,7 @@ export const publishHandler: AppActionHandler = async (event, context) => {
       locale = "en-US",
       enableLayout = false,
       recommendUntilDays = 7,
+      cdaIncludeDepth = 3,
     } = params;
 
     const baseUrl =
@@ -47,6 +48,13 @@ export const publishHandler: AppActionHandler = async (event, context) => {
     if (submitToNprOneLocal) collectionIds.push(NPR_ONE_LOCAL_COLLECTION_ID);
     if (submitToNprOneFeatured)
       collectionIds.push(NPR_ONE_FEATURED_COLLECTION_ID);
+
+    if (collectionIds.length === 0) {
+      return {
+        success: false,
+        error: "Select at least one NPR One collection before publishing.",
+      } as PublishActionResult;
+    }
 
     if (!cdsAccessToken) {
       return {
@@ -110,7 +118,11 @@ export const publishHandler: AppActionHandler = async (event, context) => {
     const ctx: ReadContext = { entrySource };
     const adapter = buildAdapter(locale, params);
 
-    const storyEntry = await entrySource.getEntry(entryId);
+    // Fetch the story entry with linked entries/assets bundled in a single
+    // CDA request. Subsequent adapter reads are served from the cache; any
+    // reference not covered by `cdaIncludeDepth` resolves to `null` and the
+    // entry source logs a warning.
+    const storyEntry = await entrySource.prime(entryId, cdaIncludeDepth);
     if (!storyEntry) {
       return {
         success: false,

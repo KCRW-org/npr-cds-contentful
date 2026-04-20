@@ -30,7 +30,10 @@ const {
   LOCALE: locale = "en-US",
   RECOMMEND_UNTIL_DAYS: recommendUntilDaysRaw,
   ENABLE_LAYOUT: enableLayoutRaw = "false",
+  CDA_INCLUDE_DEPTH: cdaIncludeDepthRaw,
 } = process.env;
+
+const cdaIncludeDepth = cdaIncludeDepthRaw ? Number(cdaIncludeDepthRaw) : 3;
 
 const recommendUntilDays = recommendUntilDaysRaw
   ? Number(recommendUntilDaysRaw)
@@ -67,7 +70,7 @@ const ctx: ReadContext = { entrySource };
 const adapter = buildAdapter(locale, params);
 
 const main = async () => {
-  const storyEntry = await entrySource.getEntry(entryId);
+  const storyEntry = await entrySource.prime(entryId, cdaIncludeDepth);
   if (!storyEntry) {
     console.error(`Entry ${entryId} not found via Content Delivery API.`);
     process.exit(1);
