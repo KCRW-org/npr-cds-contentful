@@ -6,10 +6,10 @@
  *   npm run preview-cds-document -- <entryId>
  */
 
-import { createClient } from "contentful-management";
 import { buildCdsDocument, buildLayoutFromRichText } from "../lib/publish";
 import { buildAdapter, resolveBodyEmbeds } from "../lib/schema";
-import type { CmaContext } from "../lib/schema";
+import type { ReadContext } from "../lib/schema";
+import { createDeliveryEntrySource } from "../lib/entrySource";
 import type { AppInstallationParameters } from "../types";
 import type { Document } from "@contentful/rich-text-types";
 
@@ -20,7 +20,7 @@ if (!entryId) {
 }
 
 const {
-  CONTENTFUL_ACCESS_TOKEN: accessToken = "",
+  CONTENTFUL_CDA_TOKEN: cdaToken = "",
   CONTENTFUL_SPACE_ID: spaceId = "",
   CONTENTFUL_ENVIRONMENT_ID: environmentId = "master",
   NPR_SERVICE_ID: nprServiceId,
@@ -40,8 +40,8 @@ const enableLayout = ["true", "1", "on", 1, true].includes(
   enableLayoutRaw?.toLowerCase?.() || ""
 );
 
-if (!accessToken) {
-  console.error("CONTENTFUL_ACCESS_TOKEN is required");
+if (!cdaToken) {
+  console.error("CONTENTFUL_CDA_TOKEN is required");
   process.exit(1);
 }
 if (!spaceId) {
@@ -57,13 +57,22 @@ const params: AppInstallationParameters = {
   locale,
 };
 
-const cma = createClient({ accessToken }, { type: "plain" });
-const ctx: CmaContext = { cma, spaceId, environmentId };
+const entrySource = createDeliveryEntrySource({
+  token: cdaToken,
+  spaceId,
+  environmentId,
+  locale,
+});
+const ctx: ReadContext = { entrySource };
 const adapter = buildAdapter(locale, params);
 
 const main = async () => {
-  const storyEntry = await cma.entry.get({ spaceId, environmentId, entryId });
-  const fields = (storyEntry.fields ?? {}) as Record<string, unknown>;
+  const storyEntry = await entrySource.getEntry(entryId);
+  if (!storyEntry) {
+    console.error(`Entry ${entryId} not found via Content Delivery API.`);
+    process.exit(1);
+  }
+  const fields = storyEntry.fields;
 
   const title = adapter.getTitle(fields);
   const teaser = adapter.getTeaser(fields);
@@ -91,9 +100,7 @@ const main = async () => {
   ]);
 
   const bodyDoc = enableLayout
-    ? ((fields[adapter.bodyField] as Record<string, unknown> | undefined)?.[
-        adapter.locale
-      ] as Document | undefined)
+    ? (fields[adapter.bodyField] as Document | undefined)
     : undefined;
   const embedMap = bodyDoc
     ? await resolveBodyEmbeds(bodyDoc, adapter, ctx)

@@ -94,11 +94,13 @@ The `appaction.call` handlers all share the single registered action ID `publish
 
 The publish pipeline is split across two layers to keep `publish.ts` pure/sync:
 
-- **`src/lib/schema.ts`** — Schema adapter layer. All content-model-specific field knowledge lives here. `buildAdapter(locale, params)` is the designated customization point — spread `createDefaultAdapter(locale, "body", params)` and override only differing methods. `resolveBodyEmbeds()` walks a Rich Text document and delegates each embedded entry to `adapter.resolveBodyEmbed()`.
+- **`src/lib/schema.ts`** — Schema adapter layer. All content-model-specific field knowledge lives here. `buildAdapter(locale, params)` is the designated customization point — spread `createDefaultAdapter(locale, "body", params)` and override only differing methods. `resolveBodyEmbeds()` walks a Rich Text document and delegates each embedded entry to `adapter.resolveBodyEmbed()`. Adapter methods receive locale-resolved fields (no `{ "en-US": value }` wrappers) and read linked entries/assets through a `ReadContext = { entrySource }`.
 
-- **`src/lib/publish.ts`** — Pure/sync logic: `buildLayoutFromRichText()`, `buildCdsDocument()`, `publishStoryToCds()`, `checkCdsPublishStatus()`. No CMA calls. Takes pre-resolved data from the handler layer.
+- **`src/lib/entrySource.ts`** — CDA-backed port for reading entries/assets. `createDeliveryEntrySource()` returns an `EntrySource` that only sees published content, preventing drafts from leaking to NPR. `publishHandler` creates one per request using the installed `cdaToken`.
 
-- **`functions/publishHandler.ts`** — Async handler: fetches the story entry via CMA, runs all adapter methods in parallel (`Promise.all`), calls `resolveBodyEmbeds()`, then calls `buildCdsDocument()` and `publishStoryToCds()`.
+- **`src/lib/publish.ts`** — Pure/sync logic: `buildLayoutFromRichText()`, `buildCdsDocument()`, `publishStoryToCds()`, `checkCdsPublishStatus()`. No CMA/CDA calls. Takes pre-resolved data from the handler layer.
+
+- **`functions/publishHandler.ts`** — Async handler. First validates publish state via CMA (`publishedVersion != null` and `version <= publishedVersion + 1`). Then fetches the story entry and linked references via the CDA-backed `EntrySource` (using `environmentAlias ?? environmentId`, since CDA keys are typically granted on the alias). Runs all adapter methods in parallel (`Promise.all`), calls `resolveBodyEmbeds()`, then `buildCdsDocument()` and `publishStoryToCds()`.
 
 - **`src/lib/utils.ts`** — CDS read API helpers (`fetchByURN`, `queryCDS`) and response mappers (`storyLookupForStory`, etc.). Exports `NPR_CDS_PROD` and `NPR_CDS_STAGING` base URL constants used by all handlers and fetch functions.
 
@@ -117,7 +119,7 @@ export const buildAdapter = (locale: string, params: AppInstallationParameters =
 
 `this` in any adapter method refers to the final adapter object, so overriding `getSlug` or `getParentSlug` automatically affects `getCanonicalUrl` and `getAudioEmbedUrl` without re-implementing them.
 
-The `CmaContext = { cma: PlainClientAPI, spaceId, environmentId }` is passed to all async adapter methods. The default implementation expects fields: `title`, `slug`, `bylineDate`, `shortDescription`, `body`, `primaryImage`, `audioMedia`, `shows`, `hosts`, `reporters`.
+The `ReadContext = { entrySource: EntrySource }` is passed to all async adapter methods. Adapter methods receive locale-resolved `fields` (CDA already flattens locales). The default implementation expects fields: `title`, `slug`, `bylineDate`, `shortDescription`, `body`, `primaryImage`, `audioMedia`, `shows`, `hosts`, `reporters`.
 
 ### CDS document structure
 
@@ -131,6 +133,7 @@ The `CmaContext = { cma: PlainClientAPI, spaceId, environmentId }` is passed to 
 | Parameter | Purpose |
 |---|---|
 | `cdsAccessToken` | NPR CDS bearer token with write access |
+| `cdaToken` | Contentful Delivery API token. Required to publish — all entry/asset reads during CDS document construction go through the CDA so drafts cannot leak to NPR |
 | `nprServiceId` | Sets `owners`, `brandings`, and `authorizedOrgServiceIds` on documents |
 | `cdsEnvironment` | `"production"` or `"staging"` — defaults to staging when unset |
 | `cdsDocumentPrefix` | Prefix for CDS document IDs, defaults to `"contentful-cds"` |

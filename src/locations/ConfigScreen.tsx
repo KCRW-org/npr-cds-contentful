@@ -72,6 +72,19 @@ const ConfigScreen = () => {
           )}
         </FormControl>
         <FormControl>
+          <FormControl.Label>Contentful Delivery API Token</FormControl.Label>
+          <TextInput
+            value={parameters.cdaToken || ""}
+            name="cdaToken"
+            onChange={updateParameters("cdaToken")}
+          />
+          <FormControl.HelpText>
+            Contentful Content Delivery API (CDA) token. Only published content
+            is read through this token when building CDS documents, preventing
+            draft changes from leaking to NPR. Required to publish stories.
+          </FormControl.HelpText>
+        </FormControl>
+        <FormControl>
           <FormControl.Label>NPR Service ID</FormControl.Label>
           <TextInput
             value={parameters.nprServiceId || ""}

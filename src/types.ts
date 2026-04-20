@@ -1,5 +1,6 @@
 export type AppInstallationParameters = {
   cdsAccessToken?: string;
+  cdaToken?: string;
   nprServiceId?: string;
   cdsEnvironment?: "production" | "staging";
   cdsDocumentPrefix?: string;
@@ -32,6 +33,7 @@ export type PublishActionBody = {
   entryId: string;
   submitToNprOneLocal?: boolean;
   submitToNprOneFeatured?: boolean;
+  environmentAlias?: string;
 };
 
 export type PublishActionResult = {

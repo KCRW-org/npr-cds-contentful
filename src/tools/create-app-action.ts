@@ -1,4 +1,5 @@
 import { createClient } from "contentful-management";
+import type { AppActionParameterDefinition } from "contentful-management";
 import {
   organizationId,
   appDefinitionId,
@@ -13,58 +14,82 @@ const client = createClient({ accessToken, host }, { type: "plain" });
 const functionId = manifest.functions[0].id;
 
 const main = async () => {
-  const result = await client.appAction.create(
-    { organizationId, appDefinitionId },
+  const parameters: AppActionParameterDefinition[] = [
     {
-      id: "publishToNPR",
-      type: "function-invocation",
-      function: {
-        sys: {
-          type: "Link",
-          linkType: "Function",
-          id: functionId,
-        },
-      },
-      category: "Custom",
-      name: "Publish to NPR CDS",
+      id: "entryId",
+      name: "Entry ID",
+      description: "The Contentful entry ID of the story to publish",
+      type: "Symbol",
+      required: true,
+    },
+    {
+      id: "action",
+      name: "Action",
       description:
-        "Publishes, updates, or removes this story in the NPR Content Distribution Service.",
-      parameters: [
-        {
-          id: "entryId",
-          name: "Entry ID",
-          description: "The Contentful entry ID of the story to publish",
-          type: "Symbol",
-          required: true,
-        },
-        {
-          id: "action",
-          name: "Action",
-          description:
-            "Optional action discriminator: 'checkStatus' or 'delete'. Omit for publish/update.",
-          type: "Symbol",
-          required: false,
-        },
-        {
-          id: "submitToNprOneLocal",
-          name: "Submit to NPR One Local",
-          description:
-            "Whether to add the story to the NPR One Local collection",
-          type: "Boolean",
-          required: false,
-        },
-        {
-          id: "submitToNprOneFeatured",
-          name: "Submit to NPR One Featured",
-          description:
-            "Whether to add the story to the NPR One Featured collection",
-          type: "Boolean",
-          required: false,
-        },
-      ],
-    }
-  );
-  console.log("App action created:");
+        "Optional action discriminator: 'checkStatus' or 'delete'. Omit for publish/update.",
+      type: "Symbol",
+      required: false,
+    },
+    {
+      id: "submitToNprOneLocal",
+      name: "Submit to NPR One Local",
+      description: "Whether to add the story to the NPR One Local collection",
+      type: "Boolean",
+      required: false,
+    },
+    {
+      id: "submitToNprOneFeatured",
+      name: "Submit to NPR One Featured",
+      description:
+        "Whether to add the story to the NPR One Featured collection",
+      type: "Boolean",
+      required: false,
+    },
+    {
+      id: "environmentAlias",
+      name: "Environment Alias",
+      description:
+        "Contentful environment alias (e.g. 'master'), used when reading via the CDA",
+      type: "Symbol",
+      required: false,
+    },
+  ];
+
+  const payload = {
+    type: "function-invocation" as const,
+    function: {
+      sys: {
+        type: "Link" as const,
+        linkType: "Function" as const,
+        id: functionId,
+      },
+    },
+    category: "Custom" as const,
+    name: "Publish to NPR CDS",
+    description:
+      "Publishes, updates, or removes this story in the NPR Content Distribution Service.",
+    parameters,
+  };
+
+  const appActionId = "publishToNPR";
+  let result;
+  try {
+    result = await client.appAction.update(
+      { organizationId, appDefinitionId, appActionId },
+      payload
+    );
+    console.log("App action updated:");
+  } catch (err) {
+    const status =
+      (err as { status?: number; statusCode?: number }).status ??
+      (err as { statusCode?: number }).statusCode;
+    if (status !== 404) throw err;
+    result = await client.appAction.create(
+      { organizationId, appDefinitionId },
+      { id: appActionId, ...payload }
+    );
+    console.log("App action created:");
+  }
   console.dir(result, { depth: 5 });
 };
 

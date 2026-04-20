@@ -8,7 +8,8 @@ import {
 } from "../src/lib/publish";
 import { NPR_CDS_PROD, NPR_CDS_STAGING } from "../src/lib/utils";
 import { buildAdapter, resolveBodyEmbeds } from "../src/lib/schema";
-import type { CmaContext } from "../src/lib/schema";
+import type { ReadContext } from "../src/lib/schema";
+import { createDeliveryEntrySource } from "../src/lib/entrySource";
 import type {
   AppInstallationParameters,
   PublishActionBody,
@@ -18,18 +19,26 @@ import type { Document } from "@contentful/rich-text-types";
 
 export const publishHandler: AppActionHandler = async (event, context) => {
   const body = event.body as PublishActionBody;
-  const { entryId, submitToNprOneLocal, submitToNprOneFeatured } = body;
+  const {
+    entryId,
+    submitToNprOneLocal,
+    submitToNprOneFeatured,
+    environmentAlias,
+  } = body;
 
   try {
+    const params =
+      context.appInstallationParameters as AppInstallationParameters;
     const {
       cdsAccessToken,
+      cdaToken,
       nprServiceId,
       cdsEnvironment,
       cdsDocumentPrefix = "contentful-cds",
       locale = "en-US",
       enableLayout = false,
       recommendUntilDays = 7,
-    } = context.appInstallationParameters as AppInstallationParameters;
+    } = params;
 
     const baseUrl =
       cdsEnvironment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
@@ -45,6 +54,13 @@ export const publishHandler: AppActionHandler = async (event, context) => {
         error: "Missing CDS access token in app configuration",
       } as PublishActionResult;
     }
+    if (!cdaToken) {
+      return {
+        success: false,
+        error:
+          "Content Delivery API token not configured. Add it in the app settings.",
+      } as PublishActionResult;
+    }
 
     const { spaceId, environmentId, cma } = context;
     if (!cma) {
@@ -54,14 +70,54 @@ export const publishHandler: AppActionHandler = async (event, context) => {
       } as PublishActionResult;
     }
 
-    const ctx: CmaContext = { cma, spaceId, environmentId };
-    const adapter = buildAdapter(
-      locale,
-      context.appInstallationParameters as AppInstallationParameters
-    );
+    // Validate publish state against the CMA before touching the CDA.
+    // `version === publishedVersion + 1` means the last saved version *is*
+    // the published version (no pending draft changes).
+    const entryForCheck = await cma.entry.get({
+      spaceId,
+      environmentId,
+      entryId,
+    });
+    const sys = entryForCheck.sys as {
+      version: number;
+      publishedVersion?: number | null;
+    };
+    if (sys.publishedVersion == null) {
+      return {
+        success: false,
+        error:
+          "Entry must be published in Contentful before sending to NPR CDS.",
+      } as PublishActionResult;
+    }
+    if (sys.version > sys.publishedVersion + 1) {
+      return {
+        success: false,
+        error:
+          "Entry has unpublished changes. Publish all changes in Contentful before sending to NPR CDS.",
+      } as PublishActionResult;
+    }
 
-    const storyEntry = await cma.entry.get({ spaceId, environmentId, entryId });
-    const fields = (storyEntry.fields ?? {}) as Record<string, unknown>;
+    // CDA keys are typically granted access to the environment alias (e.g.
+    // "master") rather than the underlying environment id the action runs in.
+    // The sidebar sends `environmentAlias` when available.
+    const cdaEnvironmentId = environmentAlias ?? environmentId;
+    const entrySource = createDeliveryEntrySource({
+      token: cdaToken,
+      spaceId,
+      environmentId: cdaEnvironmentId,
+      locale,
+    });
+    const ctx: ReadContext = { entrySource };
+    const adapter = buildAdapter(locale, params);
+
+    const storyEntry = await entrySource.getEntry(entryId);
+    if (!storyEntry) {
+      return {
+        success: false,
+        error: `Entry ${entryId} not accessible via the Content Delivery API. Verify the CDA token has access to the "${cdaEnvironmentId}" environment and that the entry is published.`,
+      } as PublishActionResult;
+    }
+    const fields = storyEntry.fields;
 
     const title = adapter.getTitle(fields);
     const teaser = adapter.getTeaser(fields);
@@ -97,9 +153,7 @@ export const publishHandler: AppActionHandler = async (event, context) => {
     }
 
     const bodyDoc = enableLayout
-      ? ((fields[adapter.bodyField] as Record<string, unknown> | undefined)?.[
-          adapter.locale
-        ] as Document | undefined)
+      ? (fields[adapter.bodyField] as Document | undefined)
       : undefined;
     const embedMap = bodyDoc
       ? await resolveBodyEmbeds(bodyDoc, adapter, ctx)
@@ -130,9 +184,13 @@ export const publishHandler: AppActionHandler = async (event, context) => {
     const result = await publishStoryToCds(cdsDoc, cdsAccessToken, baseUrl);
 
     if (!result.ok) {
+      const bodyString = formatErrorBody(result.body);
+      console.error(
+        `[publishHandler] CDS PUT failed for ${cdsDoc.id}: status=${result.status} body=${bodyString}`
+      );
       return {
         success: false,
-        error: `CDS returned ${result.status}: ${JSON.stringify(result.body)}`,
+        error: `NPR CDS rejected the document (HTTP ${result.status}): ${bodyString}`,
       } as PublishActionResult;
     }
 
@@ -143,7 +201,36 @@ export const publishHandler: AppActionHandler = async (event, context) => {
       documentUrl,
     } as PublishActionResult;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatUnknownError(err);
+    console.error(
+      `[publishHandler] Unhandled error for entry ${body?.entryId}: ${message}`,
+      err
+    );
     return { success: false, error: message } as PublishActionResult;
   }
+};
+
+const formatErrorBody = (body: unknown): string => {
+  if (body == null) return "(empty response body)";
+  if (typeof body === "string") return body;
+  try {
+    return JSON.stringify(body);
+  } catch {
+    return String(body);
+  }
+};
+
+const formatUnknownError = (err: unknown): string => {
+  if (err instanceof Error) {
+    return err.stack ? `${err.message}\n${err.stack}` : err.message;
+  }
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return Object.prototype.toString.call(err);
+    }
+  }
+  return String(err);
 };
