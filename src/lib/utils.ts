@@ -34,9 +34,8 @@ export const fetchByURN = async (
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
-  const base_url =
-    environment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
-  const apiUrl = base_url + urn;
+  const baseUrl = environment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
+  const apiUrl = baseUrl + urn;
   const response = await fetch(apiUrl, {
     headers,
   });
@@ -171,9 +170,8 @@ export const queryCDS = async (
   if (requireImages) {
     queryString += "&profileIds=has-images";
   }
-  const base_url =
-    environment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
-  const apiUrl = base_url + "/v1/documents?" + queryString;
+  const baseUrl = environment === "production" ? NPR_CDS_PROD : NPR_CDS_STAGING;
+  const apiUrl = baseUrl + "/v1/documents?" + queryString;
   const response = await fetch(apiUrl, {
     headers,
   });

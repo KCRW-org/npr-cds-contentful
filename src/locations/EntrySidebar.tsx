@@ -9,11 +9,16 @@ import {
   Text,
 } from "@contentful/f36-components";
 import { useSDK, useAutoResizer } from "@contentful/react-apps-toolkit";
-import type { PublishActionResult, DeleteActionResult } from "../types";
+import type {
+  AppInstallationParameters,
+  PublishActionResult,
+  DeleteActionResult,
+} from "../types";
 import {
   NPR_ONE_LOCAL_COLLECTION_ID,
   NPR_ONE_FEATURED_COLLECTION_ID,
 } from "../lib/publish";
+import { buildAdapter } from "../lib/schema";
 
 type PublishState =
   | { status: "idle" }
@@ -68,6 +73,10 @@ const countWords = (body: unknown): number => {
 const EntrySidebar = () => {
   const sdk = useSDK<SidebarAppSDK>();
   const cma = sdk.cma;
+  const params = (sdk.parameters.installation ||
+    {}) as AppInstallationParameters;
+  const adapter = buildAdapter(params.locale || sdk.locales.default, params);
+  const { bodyField: bodyFieldId, audioLinkField: audioFieldId } = adapter;
   const [publishState, setPublishState] = useState<PublishState>({
     status: "idle",
   });
@@ -81,7 +90,7 @@ const EntrySidebar = () => {
   const [entrySys, setEntrySys] = useState(() => sdk.entry.getSys());
   const [hasPublishedAudio, setHasPublishedAudio] = useState(false);
   const [bodyWordCount, setBodyWordCount] = useState(() =>
-    countWords(sdk.entry.fields.body?.getValue())
+    countWords(sdk.entry.fields[bodyFieldId]?.getValue())
   );
 
   useAutoResizer();
@@ -91,15 +100,15 @@ const EntrySidebar = () => {
   }, [sdk.entry]);
 
   useEffect(() => {
-    const bodyField = sdk.entry.fields.body;
+    const bodyField = sdk.entry.fields[bodyFieldId];
     if (!bodyField) return;
     return bodyField.onValueChanged((value: unknown) => {
       setBodyWordCount(countWords(value));
     });
-  }, [sdk.entry]);
+  }, [sdk.entry, bodyFieldId]);
 
   useEffect(() => {
-    const audioField = sdk.entry.fields.audioMedia;
+    const audioField = sdk.entry.fields[audioFieldId];
     if (!audioField) {
       setHasPublishedAudio(false);
       return;
@@ -140,7 +149,14 @@ const EntrySidebar = () => {
       unsubscribe();
       unsubscribeSlideIn();
     };
-  }, [sdk.entry, sdk.ids.space, sdk.ids.environment, sdk.navigator, cma]);
+  }, [
+    sdk.entry,
+    sdk.ids.space,
+    sdk.ids.environment,
+    sdk.navigator,
+    cma,
+    audioFieldId,
+  ]);
 
   useEffect(() => {
     cma.appActionCall

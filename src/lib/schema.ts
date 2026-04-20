@@ -47,6 +47,13 @@ export type SchemaAdapter = {
   locale: string;
   /** Name of the Rich Text body field on your story content type */
   bodyField: string;
+  /**
+   * Name of the field linking to the primary audio entry on your story
+   * content type. Used by the sidebar to check the Featured-collection
+   * requirement (linked audio must be published) without duplicating the
+   * schema knowledge that lives in `getAudio()`.
+   */
+  audioLinkField: string;
 
   // --- Synchronous field extractors ---
   getTitle(fields: EntryFields): string;
@@ -187,6 +194,7 @@ export const createDefaultAdapter = (
 ): SchemaAdapter => ({
   locale,
   bodyField,
+  audioLinkField: "audioMedia",
 
   getTitle: fields => (fields.title as string | undefined) ?? "",
   getSlug: fields => (fields.slug as string | undefined) ?? "",
@@ -270,7 +278,9 @@ export const createDefaultAdapter = (
   },
 
   async getAudio(fields, ctx) {
-    const link = fields.audioMedia as { sys?: { id?: string } } | undefined;
+    const link = fields[this.audioLinkField] as
+      | { sys?: { id?: string } }
+      | undefined;
     if (!link?.sys?.id) return undefined;
     const resolved = await resolveMediaLinkEntry(link.sys.id, ctx);
     if (!resolved) return undefined;
