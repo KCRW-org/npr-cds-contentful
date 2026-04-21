@@ -80,10 +80,18 @@ const main = async () => {
     );
     console.log("App action updated:");
   } catch (err) {
-    const status =
-      (err as { status?: number; statusCode?: number }).status ??
-      (err as { statusCode?: number }).statusCode;
-    if (status !== 404) throw err;
+    const e = err as {
+      status?: number;
+      statusCode?: number;
+      name?: string;
+      message?: string;
+    };
+    const status = e.status ?? e.statusCode;
+    const isNotFound =
+      status === 404 ||
+      e.name === "NotFound" ||
+      /"status":\s*404/.test(e.message ?? "");
+    if (!isNotFound) throw err;
     result = await client.appAction.create(
       { organizationId, appDefinitionId },
       { id: appActionId, ...payload }
