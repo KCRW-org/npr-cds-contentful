@@ -88,6 +88,7 @@ const EntrySidebar = () => {
   const [cdsStatus, setCdsStatus] = useState<CdsStatus>("checking");
   const [cdsCollectionIds, setCdsCollectionIds] = useState<string[]>([]);
   const [entrySys, setEntrySys] = useState(() => sdk.entry.getSys());
+  const [canPublish, setCanPublish] = useState<boolean | null>(null);
   const [hasPublishedAudio, setHasPublishedAudio] = useState(false);
   const [bodyWordCount, setBodyWordCount] = useState(() =>
     countWords(sdk.entry.fields[bodyFieldId]?.getValue())
@@ -98,6 +99,21 @@ const EntrySidebar = () => {
   useEffect(() => {
     return sdk.entry.onSysChanged(setEntrySys);
   }, [sdk.entry]);
+
+  useEffect(() => {
+    let cancelled = false;
+    sdk.access
+      .can("publish", { sys: entrySys })
+      .then(allowed => {
+        if (!cancelled) setCanPublish(allowed);
+      })
+      .catch(() => {
+        if (!cancelled) setCanPublish(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sdk.access, entrySys]);
 
   useEffect(() => {
     const bodyField = sdk.entry.fields[bodyFieldId];
@@ -303,6 +319,23 @@ const EntrySidebar = () => {
       setDeleteState({ status: "error", error: formatSidebarError(err) });
     }
   };
+
+  if (canPublish === null) {
+    return (
+      <Flex alignItems="center" gap="spacingXs">
+        <Spinner size="small" />
+        <Text>Checking permissions…</Text>
+      </Flex>
+    );
+  }
+
+  if (!canPublish) {
+    return (
+      <Note variant="neutral">
+        You don't have permission to publish this entry to NPR CDS.
+      </Note>
+    );
+  }
 
   return (
     <Flex
