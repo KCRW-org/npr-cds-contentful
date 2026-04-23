@@ -41,6 +41,7 @@
     "create-resource-entities:dev": "dotenv -e .env.development -- cross-env CONTENTFUL_HOST=api.contentful.com tsx ./src/tools/create-resource-entities.ts",
     "show-resource-entities": "CONTENTFUL_HOST=api.contentful.com tsx -r dotenv/config ./src/tools/show-resource-entities.ts",
     "show-resource-entities:dev": "dotenv -e .env.development -- cross-env CONTENTFUL_HOST=api.contentful.com tsx ./src/tools/show-resource-entities.ts",
+    "update-docs": "tsx ./scripts/update-docs.ts",
     "prepare": "husky"
   },
   "eslintConfig": {

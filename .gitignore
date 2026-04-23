@@ -19,3 +19,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 settings.local.json
+.python-version
+.token-savior-cache.json
+
+.mcp.json
