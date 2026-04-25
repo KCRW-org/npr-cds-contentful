@@ -147,6 +147,7 @@ export const publishHandler: AppActionHandler = async (event, context) => {
       documentProperties,
       image,
       audio,
+      video,
       bylines,
     ] = await Promise.all([
       adapter.getCanonicalUrl(fields, ctx),
@@ -155,6 +156,7 @@ export const publishHandler: AppActionHandler = async (event, context) => {
       adapter.getDocumentProperties(fields, ctx),
       adapter.getImage(fields, ctx),
       adapter.getAudio(fields, ctx),
+      adapter.getVideo(fields, ctx),
       adapter.getBylines(fields, ctx),
     ]);
 
@@ -189,6 +191,7 @@ export const publishHandler: AppActionHandler = async (event, context) => {
       cdsDocumentPrefix,
       image,
       audio,
+      video,
       bylines,
       nprServiceId,
       collectionIds,

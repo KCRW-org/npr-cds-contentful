@@ -6,6 +6,7 @@ import type {
   AppInstallationParameters,
   ResolvedEmbedEntry,
   ResolvedImage,
+  ResolvedVideo,
 } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -62,6 +63,12 @@ export type SchemaAdapter = {
   publishDateField: string;
   /** Content type ID for story entries */
   contentTypeId: string;
+  /**
+   * Name of the field linking to the primary video entry on your story
+   * content type. The default adapter resolves it via `getVideo()` and
+   * adds the `has-videos` profile and a video asset to the CDS document.
+   */
+  videoLinkField: string;
 
   // --- Synchronous field extractors ---
   getTitle(fields: EntryFields): string;
@@ -115,6 +122,10 @@ export type SchemaAdapter = {
     fields: EntryFields,
     ctx: ReadContext
   ): Promise<string | undefined>;
+  getVideo(
+    fields: EntryFields,
+    ctx: ReadContext
+  ): Promise<ResolvedVideo | undefined>;
 
   /**
    * Called once per embedded entry found in the Rich Text body.
@@ -135,6 +146,53 @@ export type SchemaAdapter = {
 const YOUTUBE_REGEX =
   /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
 const AUDIO_EXTENSIONS = /\.(mp3|m4a|aac|ogg|wav|opus)$/i;
+const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|m4v)$/i;
+
+const VIDEO_MIME_TYPES: Record<string, string> = {
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  m4v: "video/mp4",
+};
+
+/** Extract the YouTube video id from a URL, or null if it doesn't look like a YouTube URL. */
+const extractYoutubeId = (url: string): string | null => {
+  const match = url.match(YOUTUBE_REGEX);
+  return match ? match[1] : null;
+};
+
+/**
+ * Classify a media file URL by file extension as audio, video, or null.
+ * URL-only — does not infer YouTube; callers decide how to detect that.
+ */
+const classifyMediaFile = (
+  url: string,
+  duration?: number
+):
+  | { type: "audio"; url: string; duration?: number }
+  | { type: "video"; url: string; mimeType: string; duration?: number }
+  | null => {
+  let pathname: string;
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    return null;
+  }
+  if (AUDIO_EXTENSIONS.test(pathname)) {
+    return { type: "audio", url, duration };
+  }
+  const videoMatch = pathname.match(VIDEO_EXTENSIONS);
+  if (videoMatch) {
+    const ext = videoMatch[1].toLowerCase();
+    return {
+      type: "video",
+      url,
+      mimeType: VIDEO_MIME_TYPES[ext] ?? "video/mp4",
+      duration,
+    };
+  }
+  return null;
+};
 
 const resolvePhotoEntry = async (
   entryId: string,
@@ -167,6 +225,7 @@ const resolveMediaLinkEntry = async (
   ctx: ReadContext
 ): Promise<{
   url: string;
+  hosting?: string;
   duration?: number;
   streamable?: boolean;
   embedUrl?: string;
@@ -184,6 +243,7 @@ const resolveMediaLinkEntry = async (
   return url
     ? {
         url,
+        hosting: fields.hosting as string | undefined,
         duration,
         streamable: false, // This indicates live audio
         rels: ["sponsored", "tracked"],
@@ -206,6 +266,7 @@ export const createDefaultAdapter = (
   titleField: "title",
   publishDateField: "bylineDate",
   contentTypeId: "story",
+  videoLinkField: "videoMedia",
 
   getTitle: function (fields) {
     return (fields[this.titleField] as string | undefined) ?? "";
@@ -303,6 +364,27 @@ export const createDefaultAdapter = (
     return { ...resolved, embedUrl };
   },
 
+  async getVideo(fields, ctx) {
+    const link = fields[this.videoLinkField] as
+      | { sys?: { id?: string } }
+      | undefined;
+    if (!link?.sys?.id) return undefined;
+    const resolved = await resolveMediaLinkEntry(link.sys.id, ctx);
+    if (!resolved) return undefined;
+    if (resolved.hosting === "youtube") {
+      const videoId = extractYoutubeId(resolved.url);
+      return videoId ? { type: "youtube", videoId } : undefined;
+    }
+    const file = classifyMediaFile(resolved.url, resolved.duration);
+    if (file?.type !== "video") return undefined;
+    return {
+      type: file.mimeType,
+      url: file.url,
+      duration: file.duration,
+      rels: resolved.rels,
+    };
+  },
+
   async resolveBodyEmbed(entryId, contentTypeId, ctx) {
     if (contentTypeId === "htmlEmbed") {
       const entry = await ctx.entrySource.getEntry(entryId);
@@ -319,19 +401,12 @@ export const createDefaultAdapter = (
     if (contentTypeId === "mediaLink") {
       const resolved = await resolveMediaLinkEntry(entryId, ctx);
       if (resolved) {
-        const ytMatch = resolved.url.match(YOUTUBE_REGEX);
-        if (ytMatch) return { type: "youtube" as const, videoId: ytMatch[1] };
-        try {
-          const urlPath = new URL(resolved.url).pathname;
-          if (AUDIO_EXTENSIONS.test(urlPath)) {
-            return {
-              type: "audio" as const,
-              url: resolved.url,
-              duration: resolved.duration,
-            };
-          }
-        } catch {
-          /* fall through */
+        if (resolved.hosting === "youtube") {
+          const videoId = extractYoutubeId(resolved.url);
+          if (videoId) return { type: "youtube" as const, videoId };
+        } else {
+          const file = classifyMediaFile(resolved.url, resolved.duration);
+          if (file) return file;
         }
       }
     }

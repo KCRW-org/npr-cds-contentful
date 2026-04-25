@@ -4,5 +4,5 @@
     "target": "ESNext",
     "lib": ["dom", "dom.iterable", "esnext"],
   },
-  "include": ["src", "functions"]
+  "include": ["src", "functions", "scripts"]
 }

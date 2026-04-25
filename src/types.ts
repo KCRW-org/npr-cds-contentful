@@ -32,8 +32,24 @@ export type ResolvedEmbedEntry =
   | ({ type: "image" } & ResolvedImage)
   | { type: "audio"; url: string; duration?: number }
   | { type: "youtube"; videoId: string }
+  | { type: "video"; url: string; mimeType: string; duration?: number }
   | { type: "html"; html: string }
   | { type: "unknown" };
+
+/**
+ * Primary video for a story. For YouTube embeds, only `videoId` is needed.
+ * For hosted video files, `type` carries the mime type (e.g. `"video/mp4"`)
+ * and `url` points at the media file.
+ */
+export type ResolvedVideo =
+  | { type: "youtube"; videoId: string }
+  | {
+      type: string;
+      url: string;
+      duration?: number;
+      embedUrl?: string;
+      rels?: string[];
+    };
 
 export type PublishActionBody = {
   entryId: string;
@@ -74,6 +90,7 @@ export type CdsStoryDocumentInput = {
   webPages?: Array<{ href: string; rels: string[] }>;
   images?: Array<{ href: string; rels: string[] }>;
   audio?: Array<{ href: string; rels: string[] }>;
+  videos?: Array<{ href: string; rels: string[] }>;
   bylines?: Array<{ href: string }>;
   layout?: Reference[];
   assets: Record<string, unknown>;

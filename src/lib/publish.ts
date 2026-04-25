@@ -14,6 +14,7 @@ import type {
   Reference,
   ResolvedEmbedEntry,
   ResolvedImage,
+  ResolvedVideo,
 } from "../types";
 
 const NPR_CDS_BASE = "https://content.api.npr.org";
@@ -190,6 +191,32 @@ const buildYoutubeAsset = (id: string, videoId: string): unknown => ({
   externalId: videoId,
 });
 
+const buildVideoFileAsset = (
+  id: string,
+  embed: {
+    url: string;
+    mimeType: string;
+    duration?: number;
+    embedUrl?: string;
+    rels?: string[];
+  }
+): unknown => ({
+  id,
+  profiles: [
+    { href: "/v1/profiles/video", rels: ["type"] },
+    { href: "/v1/profiles/document" },
+  ],
+  enclosures: [
+    { href: embed.url, type: embed.mimeType, rels: embed.rels ?? [] },
+  ],
+  isAvailable: true,
+  isStreamable: false,
+  isDownloadable: false,
+  isEmbeddable: embed.embedUrl ? true : false,
+  ...(embed.embedUrl ? { embeddedPlayerLink: { href: embed.embedUrl } } : {}),
+  ...(embed.duration ? { duration: embed.duration } : {}),
+});
+
 // ---------------------------------------------------------------------------
 // Layout builder
 // ---------------------------------------------------------------------------
@@ -292,6 +319,14 @@ export const buildLayoutFromRichText = (
           const id = `layout-video-${videoCount++}`;
           layoutAssets[id] = buildYoutubeAsset(id, embed.videoId);
           refs.push({ href: `#/assets/${id}` });
+        } else if (embed.type === "video") {
+          const id = `layout-video-${videoCount++}`;
+          layoutAssets[id] = buildVideoFileAsset(id, {
+            url: embed.url,
+            mimeType: embed.mimeType,
+            duration: embed.duration,
+          });
+          refs.push({ href: `#/assets/${id}` });
         } else if (embed.type === "html") {
           const id = `layout-html-${htmlCount++}`;
           layoutAssets[id] = {
@@ -344,6 +379,7 @@ type BuildCdsDocumentParams = {
     embedUrl?: string;
     rels?: string[];
   };
+  video?: ResolvedVideo;
   bylines?: string[];
   nprServiceId?: string;
   collectionIds?: string[];
@@ -366,6 +402,7 @@ export const buildCdsDocument = (
     canonicalUrl,
     image,
     audio,
+    video,
     bylines = [],
     nprServiceId,
     collectionIds = [NPR_ONE_LOCAL_COLLECTION_ID],
@@ -410,6 +447,9 @@ export const buildCdsDocument = (
     profiles.push({ href: "/v1/profiles/has-audio", rels: ["interface"] });
     profiles.push({ href: "/v1/profiles/listenable", rels: ["interface"] });
   }
+  if (video) {
+    profiles.push({ href: "/v1/profiles/has-videos", rels: ["interface"] });
+  }
 
   const assets: Record<string, unknown> = {};
 
@@ -435,6 +475,21 @@ export const buildCdsDocument = (
       embeddedPlayerLink: audio.embedUrl ? { href: audio.embedUrl } : undefined,
       ...(audio.duration ? { duration: audio.duration } : {}),
     };
+  }
+
+  const videoAssetId = video ? `video-${safeEntryId}` : undefined;
+  if (video && videoAssetId) {
+    if ("videoId" in video) {
+      assets[videoAssetId] = buildYoutubeAsset(videoAssetId, video.videoId);
+    } else {
+      assets[videoAssetId] = buildVideoFileAsset(videoAssetId, {
+        url: video.url,
+        mimeType: video.type,
+        duration: video.duration,
+        embedUrl: video.embedUrl,
+        rels: video.rels,
+      });
+    }
   }
 
   bylines.forEach((name, index) => {
@@ -502,6 +557,10 @@ export const buildCdsDocument = (
     doc.audio = [
       { href: `#/assets/audio-${safeEntryId}`, rels: ["headline", "primary"] },
     ];
+  }
+
+  if (videoAssetId) {
+    doc.videos = [{ href: `#/assets/${videoAssetId}`, rels: ["primary"] }];
   }
 
   if (bylines.length > 0) {
