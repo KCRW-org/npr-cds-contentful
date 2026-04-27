@@ -217,17 +217,18 @@ const EntrySidebar = () => {
     entrySys.publishedVersion != null &&
     entrySys.version > entrySys.publishedVersion + 1;
   const hasEnoughBodyWords = bodyWordCount >= MIN_LOCAL_WORDS;
-  const effectiveNprOneLocal = nprOneLocal && hasEnoughBodyWords;
+  const qualifiesForLocal = hasEnoughBodyWords || hasPublishedAudio;
+  const effectiveNprOneLocal = nprOneLocal && qualifiesForLocal;
   const effectiveNprOneFeatured = nprOneFeatured && hasPublishedAudio;
   const noneSelected = !effectiveNprOneLocal && !effectiveNprOneFeatured;
-  const bothDisabled = !hasEnoughBodyWords && !hasPublishedAudio;
+  const bothDisabled = !qualifiesForLocal;
   const currentlyInLocal = cdsCollectionIds.includes(
     NPR_ONE_LOCAL_COLLECTION_ID
   );
   const currentlyInFeatured = cdsCollectionIds.includes(
     NPR_ONE_FEATURED_COLLECTION_ID
   );
-  const willRemoveLocal = currentlyInLocal && !hasEnoughBodyWords;
+  const willRemoveLocal = currentlyInLocal && !qualifiesForLocal;
   const willRemoveFeatured = currentlyInFeatured && !hasPublishedAudio;
   const isBusy =
     publishState.status === "loading" || deleteState.status === "loading";
@@ -345,16 +346,16 @@ const EntrySidebar = () => {
     >
       <Flex flexDirection="column" gap="spacingXs">
         <Checkbox
-          isChecked={nprOneLocal && hasEnoughBodyWords}
+          isChecked={nprOneLocal && qualifiesForLocal}
           onChange={e => setNprOneLocal(e.target.checked)}
-          isDisabled={isBusy || !hasEnoughBodyWords}
+          isDisabled={isBusy || !qualifiesForLocal}
         >
           NPR Local
         </Checkbox>
-        {!hasEnoughBodyWords && (
+        {!qualifiesForLocal && (
           <Note variant="neutral">
-            NPR Local requires a story body of at least {MIN_LOCAL_WORDS} words
-            ({bodyWordCount} so far).
+            NPR Local requires either published audio media or a story body of
+            at least {MIN_LOCAL_WORDS} words ({bodyWordCount} so far).
           </Note>
         )}
         {willRemoveLocal && (
