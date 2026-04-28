@@ -2,6 +2,7 @@
   "name": "npr-cds-contentful",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "dependencies": {
     "@contentful/app-sdk": "^4.22.0",
     "@contentful/f36-components": "4.45.0",
