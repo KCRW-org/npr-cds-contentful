@@ -188,7 +188,7 @@ const buildYoutubeAsset = (id: string, videoId: string): unknown => ({
     { href: "/v1/profiles/youtube-video", rels: ["type"] },
     { href: "/v1/profiles/document" },
   ],
-  externalId: videoId,
+  videoId,
 });
 
 const buildVideoFileAsset = (

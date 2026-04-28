@@ -150,7 +150,7 @@ describe("buildLayoutFromRichText", () => {
       "youtube",
       "youtube",
       "/v1/profiles/youtube-video",
-      ["externalId", "dQw4w9WgXcQ"],
+      ["videoId", "dQw4w9WgXcQ"],
     ],
     ["video file", "video", "/v1/profiles/video", ["duration", 120]],
     [
@@ -277,10 +277,10 @@ describe("buildCdsDocument", () => {
   });
 
   describe("video asset", () => {
-    it("builds youtube asset with externalId and youtube-video profile", () => {
+    it("builds youtube asset with videoId and youtube-video profile", () => {
       const doc = buildDoc({ video: { type: "youtube", videoId: "abc123" } });
       expect(doc.assets["video-story-1"]).toMatchObject({
-        externalId: "abc123",
+        videoId: "abc123",
         profiles: expect.arrayContaining([
           expect.objectContaining({ href: "/v1/profiles/youtube-video" }),
         ]),

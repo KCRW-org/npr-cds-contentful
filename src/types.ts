@@ -228,6 +228,7 @@ export type PublishedStorySummary = {
   publishDateTime?: string;
   collections: string[];
   hasAudio: boolean;
+  hasVideo: boolean;
   needsUpdate?: boolean;
   hasDraft?: boolean;
 };

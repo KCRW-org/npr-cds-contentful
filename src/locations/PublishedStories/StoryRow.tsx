@@ -44,7 +44,10 @@ export const StoryRow: React.FC<StoryRowProps> = ({
         )}
       </Table.Cell>
       <Table.Cell>
-        {story.hasAudio ? <Badge variant="positive">Audio</Badge> : "—"}
+        <Flex gap="spacingXs" flexWrap="wrap">
+          {story.hasAudio && <Badge variant="positive">Audio</Badge>}
+          {story.hasVideo && <Badge variant="positive">Video</Badge>}
+        </Flex>
       </Table.Cell>
       <Table.Cell>{formatDate(story.publishDateTime)}</Table.Cell>
       <Table.Cell>{getCollectionBadges(story.collections)}</Table.Cell>

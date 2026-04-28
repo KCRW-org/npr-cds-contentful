@@ -35,7 +35,8 @@ const entryToSummary = (
   locale: string,
   titleField: string,
   publishDateField: string,
-  audioLinkField: string
+  audioLinkField: string,
+  videoLinkField: string
 ): PublishedStorySummary => {
   const fields = entry.fields as Record<string, Record<string, unknown>>;
   const nprCDSData = fields[NPR_CDS_DATA_FIELD]?.[locale] as
@@ -53,6 +54,7 @@ const entryToSummary = (
     publishDateTime,
     collections: nprCDSData?.collectionIds ?? [],
     hasAudio: !!fields[audioLinkField]?.[locale],
+    hasVideo: !!fields[videoLinkField]?.[locale],
     needsUpdate: isOutOfDateWithCDS(entry.sys, nprCDSData?.contentfulVersion),
     hasDraft: hasUnpublishedChanges(entry.sys),
   };
@@ -147,7 +149,8 @@ const PublishedStoriesPage = () => {
             locale,
             adapter.titleField,
             adapter.publishDateField,
-            adapter.audioLinkField
+            adapter.audioLinkField,
+            adapter.videoLinkField
           )
         );
 
