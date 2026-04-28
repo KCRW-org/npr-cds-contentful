@@ -30,7 +30,7 @@ export const StoriesTable: React.FC<StoriesTableProps> = ({
         <Table.Row>
           <Table.Cell as="th">Title</Table.Cell>
           <Table.Cell as="th">Status</Table.Cell>
-          <Table.Cell as="th">Audio</Table.Cell>
+          <Table.Cell as="th">Media</Table.Cell>
           <Table.Cell as="th">Published</Table.Cell>
           <Table.Cell as="th">Collections</Table.Cell>
         </Table.Row>
