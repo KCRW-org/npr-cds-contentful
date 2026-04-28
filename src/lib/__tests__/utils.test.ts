@@ -133,6 +133,37 @@ describe("utils", () => {
         /content\.api\.npr\.org/
       );
     });
+
+    it("throws with body.message on non-ok response", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ message: "boom" }),
+      } as Response);
+      await expect(
+        queryCDS(new URLSearchParams(), "token", "staging", false)
+      ).rejects.toThrow("boom");
+    });
+
+    it("falls back to errors[0].text, then status code", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({ errors: [{ text: "bad query" }] }),
+      } as Response);
+      await expect(
+        queryCDS(new URLSearchParams(), "token", "staging", false)
+      ).rejects.toThrow("bad query");
+
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      } as Response);
+      await expect(
+        queryCDS(new URLSearchParams(), "token", "staging", false)
+      ).rejects.toThrow("CDS query failed with status 503");
+    });
   });
 
   describe("storyLookupForStory", () => {
