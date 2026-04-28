@@ -24,3 +24,7 @@ export type AppActionHandler = FunctionEventHandler<
   FunctionTypeEnum.AppActionCall,
   AppInstallationParameters
 >;
+export type AppEventHandler = FunctionEventHandler<
+  FunctionTypeEnum.AppEventHandler,
+  AppInstallationParameters
+>;

@@ -26,13 +26,26 @@ CONTENTFUL_SPACE_ID=
 CONTENTFUL_ENVIRONMENT_ID=master
 ```
 
-Create the app definition, build and upload the function, and create the resource type entities:
+Create the app definition, build and upload the function, register the app action, and create the resource type entities:
 
 ```bash
 npm run create-app-definition
 npm run build && npm run upload
+npm run create-app-action
 npm run create-resource-entities
 ```
+
+`create-app-action` registers the `publishToNPR` action used by the entry sidebar. Re-run it whenever the action's parameter schema changes — the script is upsert-safe.
+
+### Story content type requirement
+
+Before publishing, add a hidden **JSON Object** field to your Story content type:
+
+| Field ID | Type | Visibility |
+|---|---|---|
+| `nprCDSData` | JSON Object | Hidden from editors |
+
+The app stores per-entry NPR CDS publish state here (`cdsDocumentId`, `publishedAt`, `contentfulVersion`, `collectionIds`). It is also used as the source of truth for the Published Stories page and is automatically cleared when an entry is unpublished or archived in Contentful.
 
 ### Dev vs Production app definitions
 
@@ -62,6 +75,7 @@ All settings are managed in the app's Contentful configuration screen:
 | Parameter | Description | Default |
 |---|---|---|
 | **API Token** | NPR CDS Bearer token with write access | — |
+| **Contentful Delivery API Token** | CDA token. **Required to publish** — all entry/asset reads during CDS document construction go through the CDA so unpublished drafts cannot leak to NPR | — |
 | **NPR Service ID** | Your NPR organization service ID; sets `owners` and `brandings` on CDS documents | — |
 | **CDS Environment** | `staging` or `production` | `staging` |
 | **CDS Document Prefix** | Prefix for CDS document IDs (e.g. `mystation` → `mystation-<entryId>`) | `contentful-cds` |
@@ -70,6 +84,7 @@ All settings are managed in the app's Contentful configuration screen:
 | **Locale** | Contentful locale to read fields from | `en-US` |
 | **Recommend Until (days)** | Days after publish date to recommend in NPR One | `7` |
 | **Include story body layout** | Convert Rich Text body to a CDS `layout` array | off |
+| **CDA Include Depth** | Reference depth for the single CDA request that primes story publishing. Valid range 1–10 | `3` |
 
 > **Warning:** Changing **CDS Document Prefix** on a site with existing CDS documents will cause stories to be re-published under new IDs. The old documents will remain in CDS and must be deleted manually.
 
@@ -83,7 +98,15 @@ The app adds a sidebar widget to entry types it is installed on. From the sideba
 - **Publish / Update** the story in the NPR CDS
 - **Remove** the story from the NPR CDS (with confirmation)
 
-The sidebar shows the current CDS publication status for the entry.
+The sidebar shows the current CDS publication status for the entry, including a "Needs update" warning when the entry has been edited in Contentful since the last CDS publish. Publishing is gated on the entry being published in Contentful with no pending draft changes; collection eligibility (Local requires a minimum body word count or published audio; Featured requires the linked audio entry to be published) is checked client-side and reflected in the checkbox state.
+
+### Automatic cleanup
+
+The app subscribes to `Entry.unpublish` and `Entry.archive` events (declared in `contentful-app-manifest.json` and registered when the bundle is uploaded). On either event, the corresponding CDS document is deleted. On unpublish, the `nprCDSData` field is cleared as well; on archive the field clear is skipped because archived entries are read-only. If an archived entry is later unarchived, its stale `nprCDSData` will remain until the entry is re-published or removed via the sidebar.
+
+### Published Stories page
+
+The app registers a page-location route at `/cds-published-stories` that lists all entries currently in NPR CDS. The page queries Contentful via CMA for entries with `fields.nprCDSData` set, displays each row with status badges (Needs update, Has unpublished changes, Has audio), supports sorting by publish date or last-updated, and filters client-side by NPR collection. Stories load in batches of 25 with a "Load more" button. Access is gated on the user having publish permission for entries.
 
 
 ### Rich Text → CDS layout mapping
@@ -110,17 +133,23 @@ All schema-specific logic — field names, byline resolution, canonical URL cons
 ### The `SchemaAdapter` interface
 
 ```typescript
+type ReadContext = { entrySource: EntrySource };
+
 type SchemaAdapter = {
   locale: string;
-  bodyField: string; // Rich Text field ID
+  bodyField: string;          // Rich Text field ID for the story body
+  titleField: string;         // Field name for the story title
+  audioLinkField: string;     // Field name linking to the primary audio entry
+  publishDateField: string;   // Field name for the publish date
+  contentTypeId: string;      // Contentful content type ID for stories
 
-  // Synchronous field extractors
+  // Synchronous extractors — `fields` is locale-resolved (no `[locale]` keys).
   getTitle(fields): string;
   getSlug(fields): string;
   getPublishDate(fields): string | undefined;
   getTeaser(fields): string | undefined;
 
-  // Async resolvers (CMA available via ctx)
+  // Async resolvers — read linked entries/assets via `ctx.entrySource` (CDA-backed).
   getBylines(fields, ctx): Promise<string[]>;
   getParentSlug(fields, ctx): Promise<string | undefined>;
   getCanonicalUrl(fields, ctx): Promise<string | undefined>;
@@ -136,6 +165,10 @@ type SchemaAdapter = {
 };
 ```
 
+`ctx.entrySource` exposes `getEntry(id)` and `getAsset(id)`, both backed by a single CDA request primed at the start of publishing — so all reads are cached and only published content is visible. Field values returned from `entrySource.getEntry()` are locale-resolved by the CDA; do not subscript with `[locale]`.
+
+The string field-name properties (`titleField`, `audioLinkField`, `publishDateField`, `contentTypeId`) are read both by the publish pipeline and by the Published Stories page when iterating CMA-shaped entries. Override them once and both stay in sync.
+
 `getAdditionalWebPages` appends entries to the document's `webPages` array (valid `rels`: `apple-podcasts`, `spotify`, `google-podcasts`, `pocket-casts`, `stitcher`, `amazon-music`, `iheartradio`, `youtube-music`, `npr-one`, `appears-on`).
 
 `getAdditionalCollections` appends collection references beyond the NPR One curation IDs selected in the sidebar.
@@ -146,17 +179,22 @@ type SchemaAdapter = {
 
 `createDefaultAdapter(locale, bodyField?, params?)` returns a `SchemaAdapter` wired to this content model:
 
-| Method | Default behaviour |
+| Method / property | Default behaviour |
 |---|---|
-| `getTitle` | `fields.title[locale]` |
-| `getSlug` | `fields.slug[locale]` |
-| `getPublishDate` | `fields.bylineDate[locale]` |
-| `getTeaser` | Plain-text conversion of `fields.shortDescription[locale]` (Markdown) |
+| `contentTypeId` | `"story"` |
+| `titleField` | `"title"` |
+| `audioLinkField` | `"audioMedia"` |
+| `publishDateField` | `"bylineDate"` |
+| `bodyField` | `"body"` |
+| `getTitle` | `fields[titleField]` |
+| `getSlug` | `fields.slug` |
+| `getPublishDate` | `fields[publishDateField]` |
+| `getTeaser` | Plain-text conversion of `fields.shortDescription` (Markdown) |
 | `getBylines` | Fetches entries linked via `fields.hosts` + `fields.reporters`, reads `name` |
 | `getParentSlug` | Fetches the first entry linked via `fields.shows`, reads its `slug` |
 | `getCanonicalUrl` | Applies the **Canonical URL Template** app parameter; substitutes `{slug}` and `{parentSlug}` using `getSlug` / `getParentSlug` |
 | `getImage` | Fetches `fields.primaryImage` → `photo` entry → asset |
-| `getAudio` | Fetches `fields.audioMedia` → `mediaLink` entry, reads `mediaUrl` + `duration`; calls `getAudioEmbedUrl` |
+| `getAudio` | Fetches `fields[audioLinkField]` → `mediaLink` entry, reads `mediaUrl` + `duration`; calls `getAudioEmbedUrl` |
 | `getAudioEmbedUrl` | Applies the **Audio Embed URL Template** app parameter; substitutes `{slug}` and `{parentSlug}` |
 | `resolveBodyEmbed` | `"photo"` → image; `"mediaLink"` → YouTube or audio; `"htmlEmbed"` → html-block; others → skipped |
 
@@ -172,16 +210,16 @@ Default `mediaLink` fields: `mediaUrl` (string), `duration` (string of seconds).
 export const buildAdapter = (locale: string, params: AppInstallationParameters = {}): SchemaAdapter => ({
   ...createDefaultAdapter(locale, "body", params),
 
+  // Example: rename the title field
+  titleField: "headline",
+
   // Example: single "contributors" field instead of separate hosts + reporters
   async getBylines(fields, ctx) {
-    const links = ((fields.contributors as Record<string, unknown[]> | undefined)?.[locale] ?? []) as Array<{ sys: { id: string } }>;
+    const links = (fields.contributors ?? []) as Array<{ sys: { id: string } }>;
     const names = await Promise.all(
       links.map(async (link) => {
-        try {
-          const entry = await ctx.cma.entry.get({ spaceId: ctx.spaceId, environmentId: ctx.environmentId, entryId: link.sys.id });
-          const f = entry.fields as Record<string, Record<string, unknown>> | undefined;
-          return f?.fullName?.[locale] as string ?? null;
-        } catch { return null; }
+        const entry = await ctx.entrySource.getEntry(link.sys.id);
+        return (entry?.fields.fullName as string | undefined) ?? null;
       })
     );
     return names.filter((n): n is string => !!n);
@@ -189,11 +227,17 @@ export const buildAdapter = (locale: string, params: AppInstallationParameters =
 
   // Example: add podcast platform links
   async getAdditionalWebPages(fields, ctx) {
-    // ... resolve linked entries and return hrefs with platform rels
+    // ... resolve linked entries via ctx.entrySource and return hrefs with platform rels
     return [];
   },
 });
 ```
+
+Notes for adapter authors:
+
+- `fields` is locale-resolved — read `fields.contributors` directly, not `fields.contributors[locale]`.
+- `ctx.entrySource.getEntry(id)` returns `null` for unpublished, archived, or missing entries (and for any reference deeper than the configured **CDA Include Depth**). The function logs a warning when this happens so misconfigured depth shows up in CDS function logs.
+- `ctx.entrySource` is read-only and only sees published content. There is no CMA escape hatch in adapter methods — drafts cannot leak into the CDS document by design.
 
 ---
 
@@ -265,11 +309,24 @@ LOCALE=en-US
 
 ### Update the functions when any schema changes are made
 
-If you make updates in `src/lib/schema.ts`, you will need to build and upload the update function:
+If you make updates in `src/lib/schema.ts`, you will need to build and upload the updated function:
 
 ```bash
 npm run build && npm run upload        # production
 npm run build && npm run upload:dev    # dev
+```
+
+If you change the `publishToNPR` action's parameter schema (in `src/tools/create-app-action.ts`), re-run the registration script — Contentful rejects unknown parameter fields with a 422 before the function is invoked:
+
+```bash
+npm run create-app-action              # production
+npm run create-app-action:dev          # dev
+```
+
+### Install the app into a space
+
+```bash
+npm run install-app[:dev]
 ```
 
 ---

@@ -187,6 +187,7 @@ export type Story = Imageable & {
   teaser?: string;
   shortTeaser?: string;
   publishDateTime?: string;
+  recommendUntilDateTime?: string;
   webPages?: Reference[];
   contributionNotes?: string;
   brandings: (Reference | null)[];
@@ -196,8 +197,36 @@ export type Story = Imageable & {
   corrections?: Reference[];
   relatedItems?: Reference[];
   editorialMajorUpdateDateTime?: string;
+  collections?: Array<{ href: string; rels: string[] }>;
 };
 
 export type Collection = Imageable & {
   items: Reference[];
 };
+
+export type PublishedStorySummary = {
+  id: string;
+  entryId: string;
+  title: string;
+  publishDateTime?: string;
+  collections: string[];
+  hasAudio: boolean;
+  needsUpdate?: boolean;
+  hasDraft?: boolean;
+};
+
+export type CollectionFilter = "all" | "local" | "featured";
+
+export type SortOption = "publishDate" | "updatedAt";
+
+export type NprCDSData = {
+  cdsDocumentId: string;
+  publishedAt: string;
+  contentfulVersion: number;
+  collectionIds: string[];
+};
+
+/** Name of the JSON Object field on the Story content type that stores
+ * per-entry NPR CDS publish state. Hidden from editors; written by the publish
+ * handler, cleared on delete/unpublish. */
+export const NPR_CDS_DATA_FIELD = "nprCDSData";

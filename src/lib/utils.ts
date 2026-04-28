@@ -182,6 +182,13 @@ export const queryCDS = async (
     headers,
   });
   const responseValue = await response.json();
+  if (!response.ok) {
+    const message =
+      responseValue?.message ||
+      responseValue?.errors?.[0]?.text ||
+      `CDS query failed with status ${response.status}`;
+    throw new Error(message);
+  }
   return responseValue.resources;
 };
 

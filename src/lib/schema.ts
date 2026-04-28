@@ -54,6 +54,14 @@ export type SchemaAdapter = {
    * schema knowledge that lives in `getAudio()`.
    */
   audioLinkField: string;
+  /** Name of the title field (used by the Published Stories page when reading
+   * locale-keyed CMA entries). The synchronous `getTitle()` extractor must
+   * read the same field. */
+  titleField: string;
+  /** Name of the field used for publish dates (e.g. "bylineDate") */
+  publishDateField: string;
+  /** Content type ID for story entries */
+  contentTypeId: string;
 
   // --- Synchronous field extractors ---
   getTitle(fields: EntryFields): string;
@@ -195,10 +203,17 @@ export const createDefaultAdapter = (
   locale,
   bodyField,
   audioLinkField: "audioMedia",
+  titleField: "title",
+  publishDateField: "bylineDate",
+  contentTypeId: "story",
 
-  getTitle: fields => (fields.title as string | undefined) ?? "",
+  getTitle: function (fields) {
+    return (fields[this.titleField] as string | undefined) ?? "";
+  },
   getSlug: fields => (fields.slug as string | undefined) ?? "",
-  getPublishDate: fields => fields.bylineDate as string | undefined,
+  getPublishDate: function (fields) {
+    return fields[this.publishDateField] as string | undefined;
+  },
   getTeaser: fields => {
     const md = fields.shortDescription as string | undefined;
     return md ? markdownToPlainText(md) : undefined;

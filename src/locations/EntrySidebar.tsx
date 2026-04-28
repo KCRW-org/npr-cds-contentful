@@ -19,6 +19,10 @@ import {
   NPR_ONE_FEATURED_COLLECTION_ID,
 } from "../lib/publish";
 import { buildAdapter } from "../lib/schema";
+import {
+  isOutOfDateWithCDS,
+  hasUnpublishedChanges as entryHasUnpublishedChanges,
+} from "../lib/cdsState";
 
 type PublishState =
   | { status: "idle" }
@@ -87,6 +91,9 @@ const EntrySidebar = () => {
   const [nprOneFeatured, setNprOneFeatured] = useState(false);
   const [cdsStatus, setCdsStatus] = useState<CdsStatus>("checking");
   const [cdsCollectionIds, setCdsCollectionIds] = useState<string[]>([]);
+  const [nprContentfulVersion, setNprContentfulVersion] = useState<
+    number | null
+  >(null);
   const [entrySys, setEntrySys] = useState(() => sdk.entry.getSys());
   const [canPublish, setCanPublish] = useState<boolean | null>(null);
   const [hasPublishedAudio, setHasPublishedAudio] = useState(false);
@@ -191,10 +198,17 @@ const EntrySidebar = () => {
         const body = JSON.parse(result.response.body) as {
           published: boolean;
           collectionIds?: string[];
+          contentfulVersion?: number;
+          error?: string;
         };
+        if (body.error) {
+          setCdsStatus("unknown");
+          return;
+        }
         setCdsStatus(body.published ? "published" : "unpublished");
         const collectionIds = body.collectionIds ?? [];
         setCdsCollectionIds(collectionIds);
+        setNprContentfulVersion(body.contentfulVersion ?? null);
         // If the story is already in NPR CDS, default the checkboxes to the
         // collections it's currently a member of so updates preserve state.
         if (body.published) {
@@ -213,9 +227,10 @@ const EntrySidebar = () => {
   }, [sdk.ids, cma]);
 
   const isPublishedInContentful = entrySys.publishedVersion != null;
-  const hasUnpublishedChanges =
-    entrySys.publishedVersion != null &&
-    entrySys.version > entrySys.publishedVersion + 1;
+  const hasUnpublishedChanges = entryHasUnpublishedChanges(entrySys);
+  const needsUpdate =
+    cdsStatus === "published" &&
+    isOutOfDateWithCDS(entrySys, nprContentfulVersion);
   const hasEnoughBodyWords = bodyWordCount >= MIN_LOCAL_WORDS;
   const qualifiesForLocal = hasEnoughBodyWords || hasPublishedAudio;
   const effectiveNprOneLocal = nprOneLocal && qualifiesForLocal;
@@ -230,6 +245,12 @@ const EntrySidebar = () => {
   );
   const willRemoveLocal = currentlyInLocal && !qualifiesForLocal;
   const willRemoveFeatured = currentlyInFeatured && !hasPublishedAudio;
+  const collectionsChanged =
+    cdsStatus === "published" &&
+    (effectiveNprOneLocal !== currentlyInLocal ||
+      effectiveNprOneFeatured !== currentlyInFeatured);
+  const updateIsNoOp =
+    cdsStatus === "published" && !needsUpdate && !collectionsChanged;
   const isBusy =
     publishState.status === "loading" || deleteState.status === "loading";
 
@@ -279,6 +300,11 @@ const EntrySidebar = () => {
         if (effectiveNprOneFeatured)
           newCollectionIds.push(NPR_ONE_FEATURED_COLLECTION_ID);
         setCdsCollectionIds(newCollectionIds);
+        // Project the post-write publishedVersion: the server's writeNprData
+        // does update+publish, bumping publishedVersion by 2.
+        if (entrySys.publishedVersion != null) {
+          setNprContentfulVersion(entrySys.publishedVersion);
+        }
       } else {
         setPublishState({
           status: "error",
@@ -400,6 +426,13 @@ const EntrySidebar = () => {
         </Note>
       )}
 
+      {needsUpdate && (
+        <Note variant="warning">
+          This story has been updated in Contentful since the last publish to
+          NPR CDS. Click "Update Story in NPR CDS" to sync the latest changes.
+        </Note>
+      )}
+
       <Button
         variant="primary"
         onClick={handlePublish}
@@ -409,7 +442,8 @@ const EntrySidebar = () => {
           bothDisabled ||
           !isPublishedInContentful ||
           hasUnpublishedChanges ||
-          cdsStatus === "checking"
+          cdsStatus === "checking" ||
+          updateIsNoOp
         }
         isFullWidth
       >

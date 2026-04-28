@@ -5,6 +5,7 @@ import { queryHandler } from "./queryHandler";
 import { publishHandler } from "./publishHandler";
 import { deleteHandler } from "./deleteHandler";
 import { checkStatusHandler } from "./checkStatusHandler";
+import { appEventsHandler } from "./appEventsHandler";
 
 const typeMappings = {
   "NPR:Story": {
@@ -34,7 +35,7 @@ const resourceTypeMappingHandler: MappingHandler = event => {
   };
 };
 
-export const handler: EventHandler = (event, context) => {
+export const handler: EventHandler = (event: any, context) => {
   if (event.type === "resources.search") {
     return searchHandler(event, context);
   }
@@ -49,6 +50,10 @@ export const handler: EventHandler = (event, context) => {
 
   if (event.type === "graphql.query") {
     return queryHandler(event, context);
+  }
+
+  if (event.type === "appevent.handler") {
+    return appEventsHandler(event, context);
   }
 
   if (event.type === "appaction.call") {

@@ -10,8 +10,14 @@
       "accepts": [
         "resources.search", "resources.lookup",
         "graphql.resourcetype.mapping","graphql.query",
-        "appaction.call"
+        "appaction.call", "appevent.handler"
       ]
     }
-  ]
+  ],
+  "events": {
+    "Entry": {
+      "unpublish": { "handler": "nprCDSFunction" },
+      "archive": { "handler": "nprCDSFunction" }
+    }
+  }
 }

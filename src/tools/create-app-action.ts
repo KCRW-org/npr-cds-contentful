@@ -20,7 +20,7 @@ const main = async () => {
       name: "Entry ID",
       description: "The Contentful entry ID of the story to publish",
       type: "Symbol",
-      required: true,
+      required: false,
     },
     {
       id: "action",

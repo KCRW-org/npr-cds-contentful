@@ -14,8 +14,10 @@ import type {
   AppInstallationParameters,
   PublishActionBody,
   PublishActionResult,
+  NprCDSData,
 } from "../src/types";
 import type { Document } from "@contentful/rich-text-types";
+import { writeNprCDSData } from "./nprCDSDataStore";
 
 export const publishHandler: AppActionHandler = async (event, context) => {
   const body = event.body as PublishActionBody;
@@ -205,6 +207,21 @@ export const publishHandler: AppActionHandler = async (event, context) => {
         error: `NPR CDS rejected the document (HTTP ${result.status}): ${bodyString}`,
       } as PublishActionResult;
     }
+
+    // Write nprCDSData to persist publish state locally
+    const nprCDSData: NprCDSData = {
+      cdsDocumentId: cdsDoc.id,
+      publishedAt: new Date().toISOString(),
+      contentfulVersion: sys.publishedVersion,
+      collectionIds,
+    };
+    await writeNprCDSData(
+      entryId,
+      locale,
+      nprCDSData,
+      { cma, spaceId, environmentId },
+      entryForCheck
+    );
 
     const documentUrl = `${baseUrl}/v1/documents/${cdsDoc.id}`;
     return {

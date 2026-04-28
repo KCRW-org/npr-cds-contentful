@@ -26,6 +26,7 @@
     "create-app-definition": "contentful-app-scripts create-app-definition",
     "create-app-definition:dev": "dotenv -e .env.development -- contentful-app-scripts create-app-definition",
     "add-locations": "contentful-app-scripts add-locations",
+    "add-locations:dev": "dotenv -e .env.development -- contentful-app-scripts add-locations",
     "upload": "contentful-app-scripts upload --bundle-dir ./build",
     "upload:dev": "dotenv -e .env.development -- contentful-app-scripts upload --bundle-dir ./build",
     "upload-ci": "contentful-app-scripts upload --ci --host api.contentful.com --bundle-dir ./build --organization-id $CONTENTFUL_ORG_ID --definition-id $CONTENTFUL_APP_DEF_ID --token $CONTENTFUL_ACCESS_TOKEN",
