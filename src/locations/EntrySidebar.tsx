@@ -9,11 +9,14 @@ import {
   Text,
 } from "@contentful/f36-components";
 import { useSDK, useAutoResizer } from "@contentful/react-apps-toolkit";
-import type {
-  AppInstallationParameters,
-  PublishActionResult,
-  DeleteActionResult,
+import {
+  NPR_CDS_DATA_FIELD,
+  type AppInstallationParameters,
+  type NprCDSData,
+  type PublishActionResult,
+  type DeleteActionResult,
 } from "../types";
+import { conciergeUrl } from "../lib/cdsLinks";
 import {
   NPR_ONE_LOCAL_COLLECTION_ID,
   NPR_ONE_FEATURED_COLLECTION_ID,
@@ -27,7 +30,7 @@ import {
 type PublishState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "success"; documentId: string; documentUrl: string }
+  | { status: "success" }
   | { status: "error"; error: string };
 
 type DeleteState =
@@ -87,13 +90,41 @@ const EntrySidebar = () => {
   const [deleteState, setDeleteState] = useState<DeleteState>({
     status: "idle",
   });
-  const [nprOneLocal, setNprOneLocal] = useState(true);
-  const [nprOneFeatured, setNprOneFeatured] = useState(false);
-  const [cdsStatus, setCdsStatus] = useState<CdsStatus>("checking");
-  const [cdsCollectionIds, setCdsCollectionIds] = useState<string[]>([]);
+  // Seed CDS state synchronously from the entry's nprCDSData field so the
+  // linked id and status render immediately, without waiting on checkStatus.
+  // checkStatus still runs below to reconcile against authoritative state.
+  const initialNprData = sdk.entry.fields[NPR_CDS_DATA_FIELD]?.getValue() as
+    | NprCDSData
+    | undefined;
+  // Only use stored collectionIds as seed when the story is actually linked to
+  // a CDS document; otherwise an orphaned `{ collectionIds: [] }` would turn
+  // both checkboxes off on first paint.
+  const hasPublishHistory = !!initialNprData?.cdsDocumentId;
+  const [nprOneLocal, setNprOneLocal] = useState(
+    hasPublishHistory
+      ? initialNprData?.collectionIds?.includes(NPR_ONE_LOCAL_COLLECTION_ID) ??
+          false
+      : true
+  );
+  const [nprOneFeatured, setNprOneFeatured] = useState(
+    hasPublishHistory
+      ? initialNprData?.collectionIds?.includes(
+          NPR_ONE_FEATURED_COLLECTION_ID
+        ) ?? false
+      : false
+  );
+  const [cdsStatus, setCdsStatus] = useState<CdsStatus>(
+    initialNprData?.cdsDocumentId ? "published" : "checking"
+  );
+  const [cdsCollectionIds, setCdsCollectionIds] = useState<string[]>(
+    initialNprData?.collectionIds ?? []
+  );
+  const [cdsDocumentId, setCdsDocumentId] = useState<string | null>(
+    initialNprData?.cdsDocumentId ?? null
+  );
   const [nprContentfulVersion, setNprContentfulVersion] = useState<
     number | null
-  >(null);
+  >(initialNprData?.contentfulVersion ?? null);
   const [entrySys, setEntrySys] = useState(() => sdk.entry.getSys());
   const [canPublish, setCanPublish] = useState<boolean | null>(null);
   const [hasPublishedAudio, setHasPublishedAudio] = useState(false);
@@ -105,6 +136,27 @@ const EntrySidebar = () => {
 
   useEffect(() => {
     return sdk.entry.onSysChanged(setEntrySys);
+  }, [sdk.entry]);
+
+  // React to nprCDSData field writes (publish/delete actions update it
+  // server-side; the SDK syncs the change back here).
+  useEffect(() => {
+    const field = sdk.entry.fields[NPR_CDS_DATA_FIELD];
+    if (!field) return;
+    return field.onValueChanged((value: unknown) => {
+      const data = value as NprCDSData | undefined;
+      if (data?.cdsDocumentId) {
+        setCdsStatus("published");
+        setCdsDocumentId(data.cdsDocumentId);
+        setCdsCollectionIds(data.collectionIds ?? []);
+        setNprContentfulVersion(data.contentfulVersion ?? null);
+      } else {
+        setCdsStatus("unpublished");
+        setCdsDocumentId(null);
+        setCdsCollectionIds([]);
+        setNprContentfulVersion(null);
+      }
+    });
   }, [sdk.entry]);
 
   useEffect(() => {
@@ -202,13 +254,18 @@ const EntrySidebar = () => {
           error?: string;
         };
         if (body.error) {
-          setCdsStatus("unknown");
+          // Keep any state already seeded from the entry field; only fall back
+          // to "unknown" when we had nothing to show.
+          setCdsStatus(prev => (prev === "checking" ? "unknown" : prev));
           return;
         }
         setCdsStatus(body.published ? "published" : "unpublished");
         const collectionIds = body.collectionIds ?? [];
         setCdsCollectionIds(collectionIds);
         setNprContentfulVersion(body.contentfulVersion ?? null);
+        // cdsDocumentId is owned by the nprCDSData field's onValueChanged
+        // subscription above; intentionally not read from the reconcile
+        // response so a stale/divergent server reply can't blank the link.
         // If the story is already in NPR CDS, default the checkboxes to the
         // collections it's currently a member of so updates preserve state.
         if (body.published) {
@@ -219,7 +276,8 @@ const EntrySidebar = () => {
         }
       })
       .catch(() => {
-        if (!cancelled) setCdsStatus("unknown");
+        if (cancelled) return;
+        setCdsStatus(prev => (prev === "checking" ? "unknown" : prev));
       });
     return () => {
       cancelled = true;
@@ -287,13 +345,10 @@ const EntrySidebar = () => {
         }
       );
       const body: PublishActionResult = JSON.parse(result.response.body);
-      if (body.success && body.documentId && body.documentUrl) {
-        setPublishState({
-          status: "success",
-          documentId: body.documentId,
-          documentUrl: body.documentUrl,
-        });
+      if (body.success && body.documentId) {
+        setPublishState({ status: "success" });
         setCdsStatus("published");
+        setCdsDocumentId(body.documentId);
         const newCollectionIds: string[] = [];
         if (effectiveNprOneLocal)
           newCollectionIds.push(NPR_ONE_LOCAL_COLLECTION_ID);
@@ -335,6 +390,7 @@ const EntrySidebar = () => {
         setDeleteState({ status: "success" });
         setCdsStatus("unpublished");
         setCdsCollectionIds([]);
+        setCdsDocumentId(null);
       } else {
         setDeleteState({
           status: "error",
@@ -433,6 +489,24 @@ const EntrySidebar = () => {
         </Note>
       )}
 
+      {cdsStatus === "published" && cdsDocumentId && (
+        <Note
+          variant={publishState.status === "success" ? "positive" : "neutral"}
+          title="NPR CDS document"
+        >
+          <Text>
+            <a
+              href={conciergeUrl(cdsDocumentId)}
+              target="_blank"
+              rel="noreferrer"
+              title="Open in NPR Concierge"
+            >
+              {cdsDocumentId}
+            </a>
+          </Text>
+        </Note>
+      )}
+
       <Button
         variant="primary"
         onClick={handlePublish}
@@ -458,17 +532,6 @@ const EntrySidebar = () => {
           publishLabel
         )}
       </Button>
-
-      {publishState.status === "success" && (
-        <Note variant="positive" title="Published to NPR CDS">
-          <Text>
-            Document ID:{" "}
-            <a href={publishState.documentUrl} target="_blank" rel="noreferrer">
-              {publishState.documentId}
-            </a>
-          </Text>
-        </Note>
-      )}
 
       {publishState.status === "error" && (
         <Note variant="negative" title="Publish failed">

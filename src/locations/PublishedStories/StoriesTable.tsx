@@ -33,6 +33,7 @@ export const StoriesTable: React.FC<StoriesTableProps> = ({
           <Table.Cell as="th">Media</Table.Cell>
           <Table.Cell as="th">Published</Table.Cell>
           <Table.Cell as="th">Collections</Table.Cell>
+          <Table.Cell as="th">NPR ID</Table.Cell>
         </Table.Row>
       </Table.Head>
       <Table.Body>

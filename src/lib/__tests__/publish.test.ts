@@ -179,6 +179,24 @@ describe("buildLayoutFromRichText", () => {
     }
   );
 
+  it("body-embedded image has only the original enclosure and displaySize 'medium'", () => {
+    const map = new Map([["e1", embeds.image]]);
+    const { refs, layoutAssets } = buildLayoutFromRichText(
+      docOf(embeddedEntry("e1")),
+      map
+    );
+    const asset = layoutAssets[refAssetId(refs[0].href)] as Record<
+      string,
+      unknown
+    >;
+    expect(asset.displaySize).toBe("medium");
+    const enclosures = asset.enclosures as Array<{ rels: string[] }>;
+    expect(enclosures).toHaveLength(1);
+    expect(enclosures[0].rels).toEqual(
+      expect.arrayContaining(["primary", "image-custom", "scalable"])
+    );
+  });
+
   it("skips unknown embed types", () => {
     const map = new Map<string, ResolvedEmbedEntry>([
       ["u1", { type: "unknown" }],
@@ -365,6 +383,119 @@ describe("buildCdsDocument", () => {
       { href: "#/assets/byline-0" },
       { href: "#/assets/byline-1" },
     ]);
+  });
+
+  describe("primary image asset", () => {
+    type Enclosure = Record<string, unknown> & { rels: string[] };
+
+    const getPrimaryAsset = (
+      image: Record<string, unknown>
+    ): { displaySize?: string; enclosures: Enclosure[] } => {
+      const doc = buildDoc({ image });
+      return doc.assets["img-story-1"] as {
+        displaySize?: string;
+        enclosures: Enclosure[];
+      };
+    };
+
+    const findByRel = (enclosures: Enclosure[], rel: string) => {
+      const match = enclosures.find(e => e.rels.includes(rel));
+      if (!match) throw new Error(`No enclosure with rel '${rel}'`);
+      return match;
+    };
+
+    const sampleImage = {
+      url: "https://img/p.jpg",
+      width: 1200,
+      height: 800,
+    };
+
+    it("tags doc.images with primary + promo rels", () => {
+      const doc = buildDoc({ image: sampleImage });
+      expect(doc.images).toEqual([
+        {
+          href: "#/assets/img-story-1",
+          rels: [
+            "primary",
+            "promo-image-square",
+            "promo-image-wide",
+            "promo-image-standard",
+            "promo-image-brick",
+          ],
+        },
+      ]);
+    });
+
+    it("sets displaySize to 'large' on the primary asset", () => {
+      expect(getPrimaryAsset(sampleImage).displaySize).toBe("large");
+    });
+
+    it("emits one scalable original, one scalable square, and four fixed promo enclosures", () => {
+      const { enclosures } = getPrimaryAsset({
+        ...sampleImage,
+        focusHint: "faces",
+      });
+      expect(enclosures).toHaveLength(6);
+
+      expect(findByRel(enclosures, "image-custom")).toMatchObject({
+        rels: ["primary", "image-custom", "scalable"],
+        width: 1200,
+        height: 800,
+        hrefTemplate: expect.stringContaining("{width}"),
+      });
+      expect(findByRel(enclosures, "image-square")).toMatchObject({
+        rels: ["image-square", "scalable"],
+        width: 600,
+        height: 600,
+        hrefTemplate: expect.stringContaining("&h={width}"),
+      });
+
+      const wide = findByRel(enclosures, "image-wide");
+      expect(wide).toMatchObject({ width: 1200, height: 675 });
+      expect(wide.hrefTemplate).toBeUndefined();
+      expect(findByRel(enclosures, "image-standard")).toMatchObject({
+        width: 1200,
+        height: 800,
+      });
+      expect(findByRel(enclosures, "image-brick")).toMatchObject({
+        width: 1800,
+        height: 600,
+      });
+      expect(findByRel(enclosures, "image-vertical")).toMatchObject({
+        width: 600,
+        height: 900,
+      });
+    });
+
+    it("caps original enclosure at 2500px wide while preserving aspect", () => {
+      const { enclosures } = getPrimaryAsset({
+        url: "https://img/p.jpg",
+        width: 5000,
+        height: 4000,
+      });
+      expect(findByRel(enclosures, "image-custom")).toMatchObject({
+        width: 2500,
+        height: 2000,
+      });
+    });
+
+    it("defaults focus hint to 'center' when missing and uses fit=fill", () => {
+      const square = findByRel(
+        getPrimaryAsset(sampleImage).enclosures,
+        "image-square"
+      );
+      expect(square.href).toContain("f=center");
+      expect(square.href).toContain("fit=fill");
+    });
+
+    it("uses fit=pad and no focus when focusHint is 'nocrop'", () => {
+      const square = findByRel(
+        getPrimaryAsset({ ...sampleImage, focusHint: "nocrop" }).enclosures,
+        "image-square"
+      );
+      expect(square.href).toContain("fit=pad");
+      expect(square.href).not.toContain("f=");
+    });
   });
 
   describe("layout", () => {

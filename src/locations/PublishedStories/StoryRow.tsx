@@ -1,6 +1,7 @@
 import React from "react";
 import { Table, Badge, Flex } from "@contentful/f36-components";
 import type { PublishedStorySummary } from "../../types";
+import { conciergeUrl } from "../../lib/cdsLinks";
 import { formatDate, getCollectionBadges } from "./helpers";
 
 interface StoryRowProps {
@@ -51,6 +52,16 @@ export const StoryRow: React.FC<StoryRowProps> = ({
       </Table.Cell>
       <Table.Cell>{formatDate(story.publishDateTime)}</Table.Cell>
       <Table.Cell>{getCollectionBadges(story.collections)}</Table.Cell>
+      <Table.Cell>
+        <a
+          href={conciergeUrl(story.id)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open in NPR Concierge"
+        >
+          {story.id}
+        </a>
+      </Table.Cell>
     </Table.Row>
   );
 };

@@ -21,6 +21,30 @@ const NPR_CDS_BASE = "https://content.api.npr.org";
 export const NPR_ONE_LOCAL_COLLECTION_ID = "319418027";
 export const NPR_ONE_FEATURED_COLLECTION_ID = "500549367";
 
+const IMAGE_ORIGINAL_MAX_WIDTH = 2500;
+
+const PROMO_IMAGE_SIZES: Array<{
+  rel: string;
+  width: number;
+  height: number;
+}> = [
+  { rel: "image-wide", width: 1200, height: 675 },
+  { rel: "image-standard", width: 1200, height: 800 },
+  { rel: "image-brick", width: 1800, height: 600 },
+  // Vertical enclosure is emitted on the asset for consumers that resolve it
+  // by enclosure rel, but `promo-image-vertical` is NOT in the doc.images rel
+  // enum (CDS rejects it), so it's intentionally absent from PROMO_IMAGE_RELS.
+  { rel: "image-vertical", width: 600, height: 900 },
+];
+
+// Rels allowed on doc.images[N].rels (a closed enum in the CDS schema).
+const PROMO_IMAGE_RELS = [
+  "promo-image-square",
+  "promo-image-wide",
+  "promo-image-standard",
+  "promo-image-brick",
+];
+
 export const markdownToPlainText = (markdown: string): string => {
   if (!markdown) return "";
   return markdownToTxt(markdown).replace(/\s+/g, " ").trim();
@@ -73,7 +97,8 @@ const buildTextAsset = (id: string, html: string): unknown => ({
 
 const buildImageAsset = (
   id: string,
-  embed: ResolvedImage
+  embed: ResolvedImage,
+  isPrimary = false
 ): unknown | undefined => {
   if (!embed.width || !embed.height) return undefined;
 
@@ -89,64 +114,48 @@ const buildImageAsset = (
   } = embed;
   const enclosures: unknown[] = [];
   const hrefTemplate = `${url}?w={width}&q={quality}&fm={format}`;
+  const isNoCrop = focusHint === "nocrop";
+  const focus = focusHint && !isNoCrop ? focusHint : "center";
+  const cropParams = isNoCrop ? `fit=pad` : `f=${focus}&fit=fill`;
 
-  if (width && height) {
-    const ratio = width / height;
-    const isSquare = width === height;
-    const isNoCrop = focusHint === "nocrop";
+  // Original/custom aspect — scalable. Cap dimensions at
+  // IMAGE_ORIGINAL_MAX_WIDTH while preserving the source aspect ratio.
+  const cappedWidth = Math.min(width, IMAGE_ORIGINAL_MAX_WIDTH);
+  const cappedHeight = Math.round((cappedWidth / width) * height);
+  enclosures.push({
+    href: `${url}?w=${cappedWidth}&fm=jpg&q=80`,
+    hrefTemplate,
+    width: cappedWidth,
+    height: cappedHeight,
+    type: "image/jpeg",
+    rels: ["primary", "image-custom", "scalable"],
+  });
 
-    let aspectRel: string;
-    if (isSquare) {
-      aspectRel = "image-square";
-    } else if (ratio >= 1.7 && ratio <= 1.8) {
-      aspectRel = "image-wide";
-    } else if (ratio < 1) {
-      aspectRel = "image-vertical";
-    } else {
-      aspectRel = "image-standard";
-    }
-
+  // The square scalable enclosure and fixed promo crops are only useful for
+  // listings consuming the story's primary image. Body-embedded photos don't
+  // need them.
+  if (isPrimary) {
+    // Square — scalable. Default href is the typical 600×600 promo size; the
+    // template lets clients request any width (with matching height for 1:1).
+    const squareDefaultSize = 600;
     enclosures.push({
-      href: url + "?fm=jpg&q=80",
-      width,
-      height,
+      href: `${url}?w=${squareDefaultSize}&h=${squareDefaultSize}&fm=jpg&q=80&${cropParams}`,
+      hrefTemplate: `${hrefTemplate}&h={width}&${cropParams}`,
+      width: squareDefaultSize,
+      height: squareDefaultSize,
       type: "image/jpeg",
-      hrefTemplate,
-      rels: ["primary", "scalable", aspectRel],
+      rels: ["image-square", "scalable"],
     });
 
-    if (aspectRel !== "image-square") {
-      let squareHref = `${url}?w=600&h=600&fm=jpg&q=80`;
-      let squareHrefTemplate = `${hrefTemplate}&h={width}`;
-      if (isNoCrop) {
-        squareHref += `&fit=pad`;
-        squareHrefTemplate += `&fit=pad`;
-      } else if (focusHint) {
-        squareHref += `&f=${focusHint}&fit=fill`;
-        squareHrefTemplate += `&f=${focusHint}&fit=fill`;
-      }
+    // Promo crops — single fixed size each. CDS hrefTemplates can't compute a
+    // derived height, so we bake non-templated URLs at canonical sizes.
+    for (const size of PROMO_IMAGE_SIZES) {
       enclosures.push({
-        href: squareHref,
-        hrefTemplate: squareHrefTemplate,
+        href: `${url}?w=${size.width}&h=${size.height}&fm=jpg&q=80&${cropParams}`,
+        width: size.width,
+        height: size.height,
         type: "image/jpeg",
-        width: 600,
-        height: 600,
-        rels: ["image-square", "scalable"],
-      });
-    }
-    if (aspectRel !== "image-wide") {
-      let wideHref = `${url}?w=1200&h=676&fm=jpg&q=80`;
-      if (isNoCrop) {
-        wideHref += `&fit=pad`;
-      } else if (focusHint) {
-        wideHref += `&f=${focusHint}&fit=fill`;
-      }
-      enclosures.push({
-        href: wideHref,
-        type: "image/jpeg",
-        width: 1200,
-        height: 676,
-        rels: ["image-wide"],
+        rels: [size.rel],
       });
     }
   }
@@ -158,6 +167,7 @@ const buildImageAsset = (
       { href: "/v1/profiles/document" },
     ],
     enclosures,
+    displaySize: isPrimary ? "large" : "medium",
     ...(altText ? { altText } : {}),
     ...(caption ? { caption } : {}),
     ...(producer ? { producer } : {}),
@@ -437,7 +447,7 @@ export const buildCdsDocument = (
 
   const imgAssetId = `img-${safeEntryId}`;
   const primaryImageAsset = image?.url
-    ? buildImageAsset(imgAssetId, image)
+    ? buildImageAsset(imgAssetId, image, true)
     : undefined;
 
   if (primaryImageAsset) {
@@ -550,7 +560,12 @@ export const buildCdsDocument = (
   if (webPages.length > 0) doc.webPages = webPages;
 
   if (primaryImageAsset) {
-    doc.images = [{ href: `#/assets/${imgAssetId}`, rels: ["primary"] }];
+    doc.images = [
+      {
+        href: `#/assets/${imgAssetId}`,
+        rels: ["primary", ...PROMO_IMAGE_RELS],
+      },
+    ];
   }
 
   if (audio?.url) {

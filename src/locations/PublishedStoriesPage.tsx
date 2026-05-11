@@ -102,10 +102,20 @@ const PublishedStoriesPage = () => {
     setSkipRequest(stories.length);
   };
 
+  const locale = appParams.locale ?? "en-US";
+  const contentTypeId = buildAdapter(locale, appParams).contentTypeId;
+
   useEffect(() => {
     let cancelled = false;
     sdk.access
-      .can("publish", "Entry")
+      .can("publish", {
+        sys: {
+          type: "Entry",
+          contentType: {
+            sys: { type: "Link", linkType: "ContentType", id: contentTypeId },
+          },
+        },
+      })
       .then(allowed => {
         if (!cancelled) setCanPublish(allowed);
       })
@@ -115,7 +125,7 @@ const PublishedStoriesPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [sdk.access]);
+  }, [sdk.access, contentTypeId]);
 
   useEffect(() => {
     if (!isConfigured || !canPublish) return;
@@ -130,15 +140,35 @@ const PublishedStoriesPage = () => {
             ? "sys.updatedAt"
             : `fields.${adapter.publishDateField}`;
 
-        const result = await cma.entry.getMany({
-          query: {
-            content_type: adapter.contentTypeId,
-            [`fields.${NPR_CDS_DATA_FIELD}[exists]`]: true,
-            order: `-${orderField}`,
-            limit: BATCH_SIZE,
-            skip: skipRequest,
-          },
-        });
+        const query = {
+          content_type: adapter.contentTypeId,
+          [`fields.${NPR_CDS_DATA_FIELD}[exists]`]: true,
+          order: `-${orderField}`,
+          limit: BATCH_SIZE,
+          skip: skipRequest,
+        };
+
+        // Retry the initial fetch (skip=0) on transient failures — the page
+        // can land before the SDK's CMA token is ready, or hit a 5xx blip.
+        const maxAttempts = skipRequest === 0 ? 3 : 1;
+        let result;
+        let lastErr: unknown;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            result = await cma.entry.getMany({ query });
+            lastErr = undefined;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (attempt < maxAttempts - 1) {
+              await new Promise(resolve =>
+                setTimeout(resolve, 300 * Math.pow(3, attempt))
+              );
+            }
+          }
+          if (token !== requestTokenRef.current) return;
+        }
+        if (lastErr || !result) throw lastErr ?? new Error("No result");
 
         if (token !== requestTokenRef.current) return;
 
@@ -160,6 +190,7 @@ const PublishedStoriesPage = () => {
         setHasFetchedOnce(true);
       } catch (err) {
         if (token !== requestTokenRef.current) return;
+        console.error("PublishedStoriesPage: failed to load entries", err);
         const errorMsg =
           err instanceof Error
             ? err.message

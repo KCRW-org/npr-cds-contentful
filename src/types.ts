@@ -61,7 +61,6 @@ export type PublishActionBody = {
 export type PublishActionResult = {
   success: boolean;
   documentId?: string;
-  documentUrl?: string;
   error?: string;
 };
 

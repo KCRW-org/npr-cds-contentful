@@ -226,11 +226,9 @@ export const publishHandler: AppActionHandler = async (event, context) => {
       entryForCheck
     );
 
-    const documentUrl = `${baseUrl}/v1/documents/${cdsDoc.id}`;
     return {
       success: true,
       documentId: cdsDoc.id,
-      documentUrl,
     } as PublishActionResult;
   } catch (err: unknown) {
     const message = formatUnknownError(err);
