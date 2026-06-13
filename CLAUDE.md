@@ -70,6 +70,7 @@ npm run create-resource-entities:dev
 npm run create-app-definition[:dev]       # register app in Contentful
 npm run create-resource-entities[:dev]    # create/update NPR resource type definitions
 npm run create-app-action[:dev]           # register the publishToNPR app action
+npm run update-app-definition[:dev]       # register installation parameter definitions (tokens as Secret)
 npm run install-app[:dev]                 # install app in a space/environment
 ```
 
@@ -146,8 +147,8 @@ Lifecycle: written on successful CDS publish, cleared on `delete` action and on 
 
 | Parameter | Purpose |
 |---|---|
-| `cdsAccessToken` | NPR CDS bearer token with write access |
-| `cdaToken` | Contentful Delivery API token. Required to publish — all entry/asset reads during CDS document construction go through the CDA so drafts cannot leak to NPR |
+| `cdsAccessToken` | NPR CDS bearer token with write access. **Secret** — see below |
+| `cdaToken` | Contentful Delivery API token. Required to publish — all entry/asset reads during CDS document construction go through the CDA so drafts cannot leak to NPR. **Secret** — see below |
 | `nprServiceId` | Sets `owners`, `brandings`, and `authorizedOrgServiceIds` on documents |
 | `cdsEnvironment` | `"production"` or `"staging"` — defaults to staging when unset |
 | `cdsDocumentPrefix` | Prefix for CDS document IDs, defaults to `"contentful-cds"` |
@@ -157,12 +158,14 @@ Lifecycle: written on successful CDS publish, cleared on `delete` action and on 
 | `recommendUntilDays` | Days after publish date to recommend in NPR One, defaults to `7` |
 | `enableLayout` | Whether to build CDS `layout` array from Rich Text body |
 
+Installation parameter definitions are registered by `src/tools/update-app-definition.ts` (`npm run update-app-definition[:dev]`), which marks `cdsAccessToken` and `cdaToken` as type **Secret**: raw values reach only the serverless functions (`context.appInstallationParameters`); the App SDK and CMA see a same-length `*` redaction. Re-saving the redacted placeholder preserves the stored value — `ConfigScreen` relies on this to leave untouched tokens alone. Registering definitions closes the schema: any installation save containing an undeclared key 422s ("The property X is not expected"), so **all** installation parameters must be declared, not just the secrets — keep the script's list, `KNOWN_PARAM_IDS` in `ConfigScreen.tsx`, and `AppInstallationParameters` in sync, and re-run the script before shipping a new parameter.
+
 ### Frontend (`src/`)
 
 - `src/App.tsx` — routes to `ConfigScreen` or `EntrySidebar` based on `sdk.location`
 - `src/locations/ConfigScreen.tsx` — app installation settings UI
 - `src/locations/EntrySidebar.tsx` — publish/update/delete sidebar. Checks CDS status on mount via `checkStatus` (returns collection IDs so the UI can warn when an update strips a story from a collection it no longer qualifies for). Publish is gated on `publishedVersion != null` and no unpublished changes (`version <= publishedVersion + 1`). NPR One **Local** requires a minimum body word count; **Featured** requires the linked `audioMedia` entry to be published — since `field.onValueChanged` only fires on local link changes, the audio check also re-runs on `sdk.navigator.onSlideInNavigation` returning to slide level 0 so overlay publish/unpublish refreshes the sidebar. `formatSidebarError()` normalizes rejected app-action calls so UI errors aren't rendered as `[object Object]`.
-- `src/locations/PublishedStoriesPage.tsx` — page-location route at `/cds-published-stories`. Lists entries that have `nprCDSData`, queried via CMA in batches of 25 with a "Load more" button (server-side pagination on `skip`). Sort is server-side (`fields.${publishDateField}` or `sys.updatedAt`); collection filter is purely a client-side display predicate over the accumulated batches, since CMA only indexes top-level fields. Gated on `sdk.access.can("publish", "Entry")`. Sub-components live under `src/locations/PublishedStories/`.
+- `src/locations/PublishedStoriesPage.tsx` — page-location route at `/cds-published-stories`. Lists entries that have `nprCDSData`, queried via CMA in batches of 25 with a "Load more" button (server-side pagination on `skip`). Sort is server-side (`fields.${publishDateField}` or `sys.updatedAt`); collection filter is purely a client-side display predicate over the accumulated batches, since CMA only indexes top-level fields. Sub-components live under `src/locations/PublishedStories/`.
 - `functions/appEventsHandler.ts` — Handles `Entry.unpublish` and `Entry.archive`. Reads stored `cdsDocumentId` via `getNprCDSData`, deletes from CDS first (so archived/read-only entries still get cleaned up in NPR), then on `unpublish` calls `clearNprCDSData` (whose `wasClean` check skips the republish since `publishedVersion` is null after unpublish). Skipped on archive — the entry is read-only and `cma.entry.update` would throw.
 - `contentful-app-manifest.json` — The `events.Entry.unpublish` / `events.Entry.archive` block declares the App Event subscription. Registered when `npm run upload[:dev]` ships the bundle. The `accepts` array must include `"appevent.handler"` for the function to receive these events.
 - `src/lib/fetch.ts` — CDS read API helpers used by the lookup/search/query handlers

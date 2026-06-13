@@ -113,7 +113,9 @@ const buildImageAsset = (
     provider,
   } = embed;
   const enclosures: unknown[] = [];
-  const hrefTemplate = `${url}?w={width}&q={quality}&fm={format}`;
+  // fm is hardcoded to jpg — the CDN doesn't honor CDS's {format} placeholder,
+  // so leaving it templated would yield broken URLs at fetch time.
+  const hrefTemplate = `${url}?w={width}&q={quality}&fm=jpg`;
   const isNoCrop = focusHint === "nocrop";
   const focus = focusHint && !isNoCrop ? focusHint : "center";
   const cropParams = isNoCrop ? `fit=pad` : `f=${focus}&fit=fill`;
@@ -613,20 +615,4 @@ export const publishStoryToCds = async (
   });
   const body = await response.json().catch(() => null);
   return { ok: response.ok, status: response.status, body };
-};
-
-export const checkCdsPublishStatus = async (
-  entryId: string,
-  token: string,
-  baseUrl = NPR_CDS_BASE,
-  prefix = "contentful-cds"
-): Promise<boolean> => {
-  const documentId = `${prefix}-${entryId.toLowerCase()}`;
-  const url = `${baseUrl}/v1/documents/${documentId}`;
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  return response.ok;
 };

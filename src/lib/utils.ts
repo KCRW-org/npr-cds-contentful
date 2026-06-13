@@ -39,8 +39,15 @@ export const fetchByURN = async (
   const response = await fetch(apiUrl, {
     headers,
   });
-  const responseValue = await response.json();
-  return responseValue.resources;
+  const responseValue = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      responseValue?.message ||
+      responseValue?.errors?.[0]?.text ||
+      `CDS fetch failed with status ${response.status}`;
+    throw new Error(message);
+  }
+  return responseValue?.resources;
 };
 
 const preferredImageForItem = (
@@ -181,7 +188,7 @@ export const queryCDS = async (
   const response = await fetch(apiUrl, {
     headers,
   });
-  const responseValue = await response.json();
+  const responseValue = await response.json().catch(() => null);
   if (!response.ok) {
     const message =
       responseValue?.message ||
@@ -189,7 +196,7 @@ export const queryCDS = async (
       `CDS query failed with status ${response.status}`;
     throw new Error(message);
   }
-  return responseValue.resources;
+  return responseValue?.resources;
 };
 
 export const storyLookupForStory = (story: Story): StoryLookupResponse => {

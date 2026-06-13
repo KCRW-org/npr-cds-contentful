@@ -89,16 +89,23 @@ const schema = createSchema({
         },
         context: FunctionEventContext
       ) => {
-        return await fetchCollectionItems(
-          collection.nprId,
-          context.appInstallationParameters,
-          sort,
-          limit,
-          skip,
-          profile,
-          requireImages,
-          requireAudio
-        );
+        try {
+          return await fetchCollectionItems(
+            collection.nprId,
+            context.appInstallationParameters,
+            sort,
+            limit,
+            skip,
+            profile,
+            requireImages,
+            requireAudio
+          );
+        } catch (e) {
+          console.log(e);
+          throw new GraphQLError(
+            `Error fetching items for collection ${collection.nprId}`
+          );
+        }
       },
     },
   },

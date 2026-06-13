@@ -91,6 +91,7 @@ const main = async () => {
     documentProperties,
     image,
     audio,
+    video,
     bylines,
   ] = await Promise.all([
     adapter.getCanonicalUrl(fields, ctx),
@@ -99,6 +100,7 @@ const main = async () => {
     adapter.getDocumentProperties(fields, ctx),
     adapter.getImage(fields, ctx),
     adapter.getAudio(fields, ctx),
+    adapter.getVideo(fields, ctx),
     adapter.getBylines(fields, ctx),
   ]);
 
@@ -123,6 +125,7 @@ const main = async () => {
     documentProperties,
     image,
     audio,
+    video,
     bylines,
     nprServiceId,
     cdsDocumentPrefix,

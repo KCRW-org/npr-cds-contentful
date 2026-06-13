@@ -32,10 +32,13 @@ Create the app definition, build and upload the function, register the app actio
 npm run create-app-definition
 npm run build && npm run upload
 npm run create-app-action
+npm run update-app-definition
 npm run create-resource-entities
 ```
 
 `create-app-action` registers the `publishToNPR` action used by the entry sidebar. Re-run it whenever the action's parameter schema changes — the script is upsert-safe.
+
+`update-app-definition` registers the installation parameter definitions on the app definition, marking the NPR CDS API token and the CDA token as type `Secret`. Secret values are delivered only to the app's serverless functions; the App SDK and CMA see them redacted (a same-length string of `*`), so space members can no longer read the tokens. Once registered, the parameter schema is closed — every installation parameter must be declared, and the script must be re-run whenever a parameter is added to `AppInstallationParameters`, or configuration saves will be rejected with a 422.
 
 ### Story content type requirement
 
@@ -74,8 +77,8 @@ All settings are managed in the app's Contentful configuration screen:
 
 | Parameter | Description | Default |
 |---|---|---|
-| **API Token** | NPR CDS Bearer token with write access | — |
-| **Contentful Delivery API Token** | CDA token. **Required to publish** — all entry/asset reads during CDS document construction go through the CDA so unpublished drafts cannot leak to NPR | — |
+| **API Token** | NPR CDS Bearer token with write access. Stored as a secret — write-only after saving | — |
+| **Contentful Delivery API Token** | CDA token. **Required to publish** — all entry/asset reads during CDS document construction go through the CDA so unpublished drafts cannot leak to NPR. Stored as a secret — write-only after saving | — |
 | **NPR Service ID** | Your NPR organization service ID; sets `owners` and `brandings` on CDS documents | — |
 | **CDS Environment** | `staging` or `production` | `staging` |
 | **CDS Document Prefix** | Prefix for CDS document IDs (e.g. `mystation` → `mystation-<entryId>`) | `contentful-cds` |
@@ -106,7 +109,7 @@ The app subscribes to `Entry.unpublish` and `Entry.archive` events (declared in 
 
 ### Published Stories page
 
-The app registers a page-location route at `/cds-published-stories` that lists all entries currently in NPR CDS. The page queries Contentful via CMA for entries with `fields.nprCDSData` set, displays each row with status badges (Needs update, Has unpublished changes, Has audio), supports sorting by publish date or last-updated, and filters client-side by NPR collection. Stories load in batches of 25 with a "Load more" button. Access is gated on the user having publish permission for entries.
+The app registers a page-location route at `/cds-published-stories` that lists all entries currently in NPR CDS. The page queries Contentful via CMA for entries with `fields.nprCDSData` set, displays each row with status badges (Needs update, Has unpublished changes, Has audio), supports sorting by publish date or last-updated, and filters client-side by NPR collection. Stories load in batches of 25 with a "Load more" button.
 
 
 ### Rich Text → CDS layout mapping

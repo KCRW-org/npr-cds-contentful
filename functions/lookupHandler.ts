@@ -13,18 +13,26 @@ export const lookupHandler: ResourcesLookupHandler = async (event, context) => {
   console.log("Lookup:\n" + JSON.stringify(urns, null, 4));
 
   let items = [] as Array<CollectionQueryResponse | StoryLookupResponse>;
-  if (resourceType === "NPR:Story") {
-    items =
-      (await fetchMultipleStories(
-        urns as string[],
-        context.appInstallationParameters
-      )) || [];
-  } else if (resourceType === "NPR:Collection") {
-    items =
-      (await fetchMultipleCollections(
-        urns as string[],
-        context.appInstallationParameters
-      )) || [];
+  try {
+    if (resourceType === "NPR:Story") {
+      items =
+        (await fetchMultipleStories(
+          urns as string[],
+          context.appInstallationParameters
+        )) || [];
+    } else if (resourceType === "NPR:Collection") {
+      items =
+        (await fetchMultipleCollections(
+          urns as string[],
+          context.appInstallationParameters
+        )) || [];
+    }
+  } catch (e) {
+    // A thrown error here surfaces only as a generic failure in the
+    // reference-field UI, so log the detail for diagnosis and return an empty
+    // result instead.
+    console.error(`[lookupHandler] CDS lookup failed for ${resourceType}:`, e);
+    return { items: [], pages: {} };
   }
   items = items.map(cleanupLookupItem);
 
