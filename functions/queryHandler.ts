@@ -60,10 +60,12 @@ const schema = createSchema({
         try {
           return await fetchCollection(urn, context.appInstallationParameters);
         } catch (e) {
+          // Log the cause server-side. We deliberately do NOT attach
+          // `originalError` to the GraphQLError: yoga's default error masking
+          // treats a GraphQLError wrapping a non-GraphQL error as "unexpected"
+          // and replaces this message with a generic "Unexpected error.".
           console.error(`Error fetching collection ${urn}`, e);
-          throw new GraphQLError(`Error fetching collection ${urn}`, {
-            originalError: e instanceof Error ? e : undefined,
-          });
+          throw new GraphQLError(`Error fetching collection ${urn}`);
         }
       },
       story: async (_parent, { urn }, context: FunctionEventContext) => {
@@ -74,9 +76,7 @@ const schema = createSchema({
           return await fetchStory(urn, context.appInstallationParameters);
         } catch (e) {
           console.error(`Error fetching story ${urn}`, e);
-          throw new GraphQLError(`Error fetching story ${urn}`, {
-            originalError: e instanceof Error ? e : undefined,
-          });
+          throw new GraphQLError(`Error fetching story ${urn}`);
         }
       },
     },
@@ -110,8 +110,7 @@ const schema = createSchema({
             e
           );
           throw new GraphQLError(
-            `Error fetching items for collection ${collection.nprId}`,
-            { originalError: e instanceof Error ? e : undefined }
+            `Error fetching items for collection ${collection.nprId}`
           );
         }
       },
