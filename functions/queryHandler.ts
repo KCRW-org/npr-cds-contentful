@@ -60,8 +60,10 @@ const schema = createSchema({
         try {
           return await fetchCollection(urn, context.appInstallationParameters);
         } catch (e) {
-          console.log(e);
-          throw new GraphQLError(`Error fetching collection ${urn}`);
+          console.error(`Error fetching collection ${urn}`, e);
+          throw new GraphQLError(`Error fetching collection ${urn}`, {
+            originalError: e instanceof Error ? e : undefined,
+          });
         }
       },
       story: async (_parent, { urn }, context: FunctionEventContext) => {
@@ -71,8 +73,10 @@ const schema = createSchema({
         try {
           return await fetchStory(urn, context.appInstallationParameters);
         } catch (e) {
-          console.log(e);
-          throw new GraphQLError(`Error fetching story ${urn}`);
+          console.error(`Error fetching story ${urn}`, e);
+          throw new GraphQLError(`Error fetching story ${urn}`, {
+            originalError: e instanceof Error ? e : undefined,
+          });
         }
       },
     },
@@ -101,9 +105,13 @@ const schema = createSchema({
             requireAudio
           );
         } catch (e) {
-          console.log(e);
+          console.error(
+            `Error fetching items for collection ${collection.nprId}`,
+            e
+          );
           throw new GraphQLError(
-            `Error fetching items for collection ${collection.nprId}`
+            `Error fetching items for collection ${collection.nprId}`,
+            { originalError: e instanceof Error ? e : undefined }
           );
         }
       },

@@ -141,6 +141,19 @@ describe("utils", () => {
         fetchByURN("/v1/documents/x", "t", "staging")
       ).rejects.toThrow("CDS fetch failed with status 502");
     });
+
+    it("propagates a parse error on an ok response with a non-JSON body", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError("Unexpected token < in JSON");
+        },
+      } as unknown as Response);
+      await expect(
+        fetchByURN("/v1/documents/x", "t", "staging")
+      ).rejects.toThrow();
+    });
   });
 
   describe("queryCDS", () => {
@@ -220,6 +233,19 @@ describe("utils", () => {
       await expect(
         queryCDS(new URLSearchParams(), "token", "staging", false)
       ).rejects.toThrow("CDS query failed with status 502");
+    });
+
+    it("propagates a parse error on an ok response with a non-JSON body", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError("Unexpected token < in JSON");
+        },
+      } as unknown as Response);
+      await expect(
+        queryCDS(new URLSearchParams(), "token", "staging", false)
+      ).rejects.toThrow();
     });
   });
 
