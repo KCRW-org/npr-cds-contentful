@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { SidebarAppSDK } from "@contentful/app-sdk";
 import {
   Button,
@@ -116,6 +116,15 @@ const EntrySidebar = () => {
   const [cdsStatus, setCdsStatus] = useState<CdsStatus>(
     initialNprData?.cdsDocumentId ? "published" : "checking"
   );
+  // The collection checkboxes hold user intent, but `reconcileStatus` overwrites
+  // them from authoritative server state. Until the first reconcile resolves we
+  // keep the checkboxes disabled so an edit can't be silently clobbered by a
+  // slow in-flight status fetch. Re-set to false while a post-action re-fetch
+  // is in progress.
+  const [statusReady, setStatusReady] = useState(false);
+  // Monotonic token so only the latest reconcile is allowed to write state —
+  // a stale fetch resolving late can't overwrite a newer one.
+  const statusTokenRef = useRef(0);
   const [cdsCollectionIds, setCdsCollectionIds] = useState<string[]>(
     initialNprData?.collectionIds ?? []
   );
@@ -233,10 +242,16 @@ const EntrySidebar = () => {
     audioFieldId,
   ]);
 
-  useEffect(() => {
-    let cancelled = false;
-    cma.appActionCall
-      .createWithResponse(
+  // Fetch authoritative CDS status and reconcile local state against it. Runs
+  // on mount and again after a publish/delete so the checkboxes and "needs
+  // update" indicator reflect what the server actually stored. Guarded by
+  // `statusTokenRef` so a stale call can't clobber a newer one, and toggles
+  // `statusReady` so the checkboxes stay disabled while a fetch is in flight.
+  const reconcileStatus = useCallback(async () => {
+    const token = ++statusTokenRef.current;
+    setStatusReady(false);
+    try {
+      const result = await cma.appActionCall.createWithResponse(
         {
           spaceId: sdk.ids.space,
           environmentId: sdk.ids.environment,
@@ -244,45 +259,46 @@ const EntrySidebar = () => {
           appActionId: "publishToNPR",
         },
         { parameters: { action: "checkStatus", entryId: sdk.ids.entry } }
-      )
-      .then(result => {
-        if (cancelled) return;
-        const body = JSON.parse(result.response.body) as {
-          published: boolean;
-          collectionIds?: string[];
-          contentfulVersion?: number;
-          error?: string;
-        };
-        if (body.error) {
-          // Keep any state already seeded from the entry field; only fall back
-          // to "unknown" when we had nothing to show.
-          setCdsStatus(prev => (prev === "checking" ? "unknown" : prev));
-          return;
-        }
-        setCdsStatus(body.published ? "published" : "unpublished");
-        const collectionIds = body.collectionIds ?? [];
-        setCdsCollectionIds(collectionIds);
-        setNprContentfulVersion(body.contentfulVersion ?? null);
-        // cdsDocumentId is owned by the nprCDSData field's onValueChanged
-        // subscription above; intentionally not read from the reconcile
-        // response so a stale/divergent server reply can't blank the link.
-        // If the story is already in NPR CDS, default the checkboxes to the
-        // collections it's currently a member of so updates preserve state.
-        if (body.published) {
-          setNprOneLocal(collectionIds.includes(NPR_ONE_LOCAL_COLLECTION_ID));
-          setNprOneFeatured(
-            collectionIds.includes(NPR_ONE_FEATURED_COLLECTION_ID)
-          );
-        }
-      })
-      .catch(() => {
-        if (cancelled) return;
+      );
+      if (token !== statusTokenRef.current) return;
+      const body = JSON.parse(result.response.body) as {
+        published: boolean;
+        collectionIds?: string[];
+        contentfulVersion?: number;
+        error?: string;
+      };
+      if (body.error) {
+        // Keep any state already seeded from the entry field; only fall back
+        // to "unknown" when we had nothing to show.
         setCdsStatus(prev => (prev === "checking" ? "unknown" : prev));
-      });
-    return () => {
-      cancelled = true;
-    };
+        return;
+      }
+      setCdsStatus(body.published ? "published" : "unpublished");
+      const collectionIds = body.collectionIds ?? [];
+      setCdsCollectionIds(collectionIds);
+      setNprContentfulVersion(body.contentfulVersion ?? null);
+      // cdsDocumentId is owned by the nprCDSData field's onValueChanged
+      // subscription above; intentionally not read from the reconcile
+      // response so a stale/divergent server reply can't blank the link.
+      // If the story is already in NPR CDS, default the checkboxes to the
+      // collections it's currently a member of so updates preserve state.
+      if (body.published) {
+        setNprOneLocal(collectionIds.includes(NPR_ONE_LOCAL_COLLECTION_ID));
+        setNprOneFeatured(
+          collectionIds.includes(NPR_ONE_FEATURED_COLLECTION_ID)
+        );
+      }
+    } catch {
+      if (token !== statusTokenRef.current) return;
+      setCdsStatus(prev => (prev === "checking" ? "unknown" : prev));
+    } finally {
+      if (token === statusTokenRef.current) setStatusReady(true);
+    }
   }, [sdk.ids, cma]);
+
+  useEffect(() => {
+    reconcileStatus();
+  }, [reconcileStatus]);
 
   const isPublishedInContentful = entrySys.publishedVersion != null;
   const hasUnpublishedChanges = entryHasUnpublishedChanges(entrySys);
@@ -313,7 +329,7 @@ const EntrySidebar = () => {
     publishState.status === "loading" || deleteState.status === "loading";
 
   const publishLabel =
-    cdsStatus === "checking" ? (
+    cdsStatus === "checking" || !statusReady ? (
       <Flex alignItems="center" gap="spacingXs">
         <Spinner size="small" />
         <Text>Checking NPR status…</Text>
@@ -346,20 +362,14 @@ const EntrySidebar = () => {
       );
       const body: PublishActionResult = JSON.parse(result.response.body);
       if (body.success && body.documentId) {
-        setPublishState({ status: "success" });
         setCdsStatus("published");
         setCdsDocumentId(body.documentId);
-        const newCollectionIds: string[] = [];
-        if (effectiveNprOneLocal)
-          newCollectionIds.push(NPR_ONE_LOCAL_COLLECTION_ID);
-        if (effectiveNprOneFeatured)
-          newCollectionIds.push(NPR_ONE_FEATURED_COLLECTION_ID);
-        setCdsCollectionIds(newCollectionIds);
-        // Project the post-write publishedVersion: the server's writeNprData
-        // does update+publish, bumping publishedVersion by 2.
-        if (entrySys.publishedVersion != null) {
-          setNprContentfulVersion(entrySys.publishedVersion);
-        }
+        // Re-fetch authoritative state (collections, version) from the server
+        // rather than projecting it optimistically, so the checkboxes and
+        // "needs update" indicator reflect what was actually stored. We stay in
+        // the loading state until this resolves, keeping the controls disabled.
+        await reconcileStatus();
+        setPublishState({ status: "success" });
       } else {
         setPublishState({
           status: "error",
@@ -387,10 +397,13 @@ const EntrySidebar = () => {
       );
       const body: DeleteActionResult = JSON.parse(result.response.body);
       if (body.success) {
-        setDeleteState({ status: "success" });
         setCdsStatus("unpublished");
         setCdsCollectionIds([]);
         setCdsDocumentId(null);
+        // Reconcile against the server (the entry's nprCDSData was cleared) so
+        // status stays in sync; keeps the controls disabled until it resolves.
+        await reconcileStatus();
+        setDeleteState({ status: "success" });
       } else {
         setDeleteState({
           status: "error",
@@ -430,7 +443,7 @@ const EntrySidebar = () => {
         <Checkbox
           isChecked={nprOneLocal && qualifiesForLocal}
           onChange={e => setNprOneLocal(e.target.checked)}
-          isDisabled={isBusy || !qualifiesForLocal}
+          isDisabled={isBusy || !statusReady || !qualifiesForLocal}
         >
           NPR Local
         </Checkbox>
@@ -449,7 +462,7 @@ const EntrySidebar = () => {
         <Checkbox
           isChecked={nprOneFeatured && hasPublishedAudio}
           onChange={e => setNprOneFeatured(e.target.checked)}
-          isDisabled={isBusy || !hasPublishedAudio}
+          isDisabled={isBusy || !statusReady || !hasPublishedAudio}
         >
           NPR Featured
         </Checkbox>
@@ -512,6 +525,7 @@ const EntrySidebar = () => {
         onClick={handlePublish}
         isDisabled={
           isBusy ||
+          !statusReady ||
           noneSelected ||
           bothDisabled ||
           !isPublishedInContentful ||
