@@ -65,7 +65,6 @@ const PublishedStoriesPage = () => {
   const cma = sdk.cma;
   const appParams = sdk.parameters.installation as AppInstallationParameters;
   const isConfigured = !!appParams.cdsAccessToken && !!appParams.nprServiceId;
-  const [canPublish, setCanPublish] = useState<boolean | undefined>();
   const [stories, setStories] = useState<PublishedStorySummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(isConfigured);
@@ -102,33 +101,8 @@ const PublishedStoriesPage = () => {
     setSkipRequest(stories.length);
   };
 
-  const locale = appParams.locale ?? "en-US";
-  const contentTypeId = buildAdapter(locale, appParams).contentTypeId;
-
   useEffect(() => {
-    let cancelled = false;
-    sdk.access
-      .can("publish", {
-        sys: {
-          type: "Entry",
-          contentType: {
-            sys: { type: "Link", linkType: "ContentType", id: contentTypeId },
-          },
-        },
-      })
-      .then(allowed => {
-        if (!cancelled) setCanPublish(allowed);
-      })
-      .catch(() => {
-        if (!cancelled) setCanPublish(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [sdk.access, contentTypeId]);
-
-  useEffect(() => {
-    if (!isConfigured || !canPublish) return;
+    if (!isConfigured) return;
     const token = ++requestTokenRef.current;
     const fetchStories = async () => {
       setLoading(true);
@@ -207,33 +181,10 @@ const PublishedStoriesPage = () => {
     sort,
     skipRequest,
     isConfigured,
-    canPublish,
     sdk.ids.space,
     sdk.ids.environment,
     refreshNonce,
   ]);
-
-  if (canPublish === undefined) {
-    return (
-      <Flex flexDirection="column" margin="spacingL" gap="spacingM">
-        <Heading>Published Stories</Heading>
-        <Flex justifyContent="center" padding="spacingL">
-          <Spinner />
-        </Flex>
-      </Flex>
-    );
-  }
-
-  if (!canPublish) {
-    return (
-      <Flex flexDirection="column" margin="spacingL" gap="spacingM">
-        <Heading>Published Stories</Heading>
-        <Note variant="warning" title="Access denied">
-          You need publish permissions to view stories published to NPR CDS.
-        </Note>
-      </Flex>
-    );
-  }
 
   if (!isConfigured) {
     return (

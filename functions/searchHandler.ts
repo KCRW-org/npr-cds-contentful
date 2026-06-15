@@ -11,17 +11,25 @@ export const searchHandler: ResourcesSearchHandler = async (event, context) => {
   const page = event.pages?.nextCursor ?? "1";
   const limit = event.limit ?? 20;
   const pages = {} as Record<string, string>;
-  if (resourceType == "NPR:Story") {
-    items =
-      (await listStories(
-        context.appInstallationParameters,
-        limit,
-        page,
-        query
-      )) || [];
-  } else if (resourceType == "NPR:Collection") {
-    items =
-      (await listPrograms(context.appInstallationParameters, query)) || [];
+  try {
+    if (resourceType == "NPR:Story") {
+      items =
+        (await listStories(
+          context.appInstallationParameters,
+          limit,
+          page,
+          query
+        )) || [];
+    } else if (resourceType == "NPR:Collection") {
+      items =
+        (await listPrograms(context.appInstallationParameters, query)) || [];
+    }
+  } catch (e) {
+    // A thrown error here surfaces only as a generic failure in the
+    // reference-field UI, so log the detail for diagnosis and return an empty
+    // result instead.
+    console.error(`[searchHandler] CDS search failed for ${resourceType}:`, e);
+    return { items: [], pages: {} };
   }
   items = items.map(cleanupLookupItem);
   if (items.length >= limit) {

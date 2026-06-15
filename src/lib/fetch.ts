@@ -21,9 +21,13 @@ export const fetchStory = async (
   if (!cdsAccessToken) {
     return;
   }
-  const story = (
-    (await fetchByURN(urn, cdsAccessToken, cdsEnvironment)) as Story[]
-  )[0];
+  const stories = (await fetchByURN(urn, cdsAccessToken, cdsEnvironment)) as
+    | Story[]
+    | undefined;
+  const story = stories?.[0];
+  if (!story) {
+    return undefined;
+  }
   return storyLookupForStory(story);
 };
 
@@ -43,9 +47,15 @@ export const fetchCollection = async (
   if (!cdsAccessToken) {
     return;
   }
-  const collection = (
-    (await fetchByURN(urn, cdsAccessToken, cdsEnvironment)) as Collection[]
-  )[0];
+  const collections = (await fetchByURN(
+    urn,
+    cdsAccessToken,
+    cdsEnvironment
+  )) as Collection[] | undefined;
+  const collection = collections?.[0];
+  if (!collection) {
+    return undefined;
+  }
   return collectionLookupForCollection(collection);
 };
 

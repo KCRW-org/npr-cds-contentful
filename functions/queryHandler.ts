@@ -60,7 +60,11 @@ const schema = createSchema({
         try {
           return await fetchCollection(urn, context.appInstallationParameters);
         } catch (e) {
-          console.log(e);
+          // Log the cause server-side. We deliberately do NOT attach
+          // `originalError` to the GraphQLError: yoga's default error masking
+          // treats a GraphQLError wrapping a non-GraphQL error as "unexpected"
+          // and replaces this message with a generic "Unexpected error.".
+          console.error(`Error fetching collection ${urn}`, e);
           throw new GraphQLError(`Error fetching collection ${urn}`);
         }
       },
@@ -71,7 +75,7 @@ const schema = createSchema({
         try {
           return await fetchStory(urn, context.appInstallationParameters);
         } catch (e) {
-          console.log(e);
+          console.error(`Error fetching story ${urn}`, e);
           throw new GraphQLError(`Error fetching story ${urn}`);
         }
       },
@@ -89,16 +93,26 @@ const schema = createSchema({
         },
         context: FunctionEventContext
       ) => {
-        return await fetchCollectionItems(
-          collection.nprId,
-          context.appInstallationParameters,
-          sort,
-          limit,
-          skip,
-          profile,
-          requireImages,
-          requireAudio
-        );
+        try {
+          return await fetchCollectionItems(
+            collection.nprId,
+            context.appInstallationParameters,
+            sort,
+            limit,
+            skip,
+            profile,
+            requireImages,
+            requireAudio
+          );
+        } catch (e) {
+          console.error(
+            `Error fetching items for collection ${collection.nprId}`,
+            e
+          );
+          throw new GraphQLError(
+            `Error fetching items for collection ${collection.nprId}`
+          );
+        }
       },
     },
   },

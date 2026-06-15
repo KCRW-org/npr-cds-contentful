@@ -97,6 +97,63 @@ describe("utils", () => {
         expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(urlPattern);
       }
     );
+
+    it("throws with body.message on non-ok response", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ message: "boom" }),
+      } as Response);
+      await expect(
+        fetchByURN("/v1/documents/x", "t", "staging")
+      ).rejects.toThrow("boom");
+    });
+
+    it("falls back to errors[0].text, then status code", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({ errors: [{ text: "not found" }] }),
+      } as Response);
+      await expect(
+        fetchByURN("/v1/documents/x", "t", "staging")
+      ).rejects.toThrow("not found");
+
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      } as Response);
+      await expect(
+        fetchByURN("/v1/documents/x", "t", "staging")
+      ).rejects.toThrow("CDS fetch failed with status 503");
+    });
+
+    it("throws the status-code fallback when the error body is not JSON", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new SyntaxError("Unexpected token < in JSON");
+        },
+      } as unknown as Response);
+      await expect(
+        fetchByURN("/v1/documents/x", "t", "staging")
+      ).rejects.toThrow("CDS fetch failed with status 502");
+    });
+
+    it("propagates a parse error on an ok response with a non-JSON body", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError("Unexpected token < in JSON");
+        },
+      } as unknown as Response);
+      await expect(
+        fetchByURN("/v1/documents/x", "t", "staging")
+      ).rejects.toThrow();
+    });
   });
 
   describe("queryCDS", () => {
@@ -163,6 +220,32 @@ describe("utils", () => {
       await expect(
         queryCDS(new URLSearchParams(), "token", "staging", false)
       ).rejects.toThrow("CDS query failed with status 503");
+    });
+
+    it("throws the status-code fallback when the error body is not JSON", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new SyntaxError("Unexpected token < in JSON");
+        },
+      } as unknown as Response);
+      await expect(
+        queryCDS(new URLSearchParams(), "token", "staging", false)
+      ).rejects.toThrow("CDS query failed with status 502");
+    });
+
+    it("propagates a parse error on an ok response with a non-JSON body", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError("Unexpected token < in JSON");
+        },
+      } as unknown as Response);
+      await expect(
+        queryCDS(new URLSearchParams(), "token", "staging", false)
+      ).rejects.toThrow();
     });
   });
 

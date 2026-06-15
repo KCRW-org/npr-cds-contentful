@@ -39,6 +39,18 @@ export const fetchByURN = async (
   const response = await fetch(apiUrl, {
     headers,
   });
+  if (!response.ok) {
+    // Tolerate a non-JSON error body (e.g. an HTML 5xx page) so we surface a
+    // clear status message instead of a JSON parse error.
+    const errorBody = await response.json().catch(() => null);
+    const message =
+      errorBody?.message ||
+      errorBody?.errors?.[0]?.text ||
+      `CDS fetch failed with status ${response.status}`;
+    throw new Error(message);
+  }
+  // On a successful response a parse failure is a genuine error — let it throw
+  // rather than silently resolving to an undefined ("not found") result.
   const responseValue = await response.json();
   return responseValue.resources;
 };
@@ -181,14 +193,19 @@ export const queryCDS = async (
   const response = await fetch(apiUrl, {
     headers,
   });
-  const responseValue = await response.json();
   if (!response.ok) {
+    // Tolerate a non-JSON error body (e.g. an HTML 5xx page) so we surface a
+    // clear status message instead of a JSON parse error.
+    const errorBody = await response.json().catch(() => null);
     const message =
-      responseValue?.message ||
-      responseValue?.errors?.[0]?.text ||
+      errorBody?.message ||
+      errorBody?.errors?.[0]?.text ||
       `CDS query failed with status ${response.status}`;
     throw new Error(message);
   }
+  // On a successful response a parse failure is a genuine error — let it throw
+  // rather than silently resolving to an undefined result that callers .map().
+  const responseValue = await response.json();
   return responseValue.resources;
 };
 

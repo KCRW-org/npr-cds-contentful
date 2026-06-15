@@ -5,7 +5,6 @@ import {
   markdownToPlainText,
   buildLayoutFromRichText,
   buildCdsDocument,
-  checkCdsPublishStatus,
   publishStoryToCds,
   NPR_ONE_LOCAL_COLLECTION_ID,
   NPR_ONE_FEATURED_COLLECTION_ID,
@@ -529,57 +528,6 @@ describe("buildCdsDocument", () => {
       const doc = buildDoc({ layout: layoutWithRefs });
       expect(doc.assets["layout-text-0"]).toBeDefined();
     });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// checkCdsPublishStatus
-// ---------------------------------------------------------------------------
-
-describe("checkCdsPublishStatus", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.clearAllMocks();
-  });
-
-  it("returns true on 200", async () => {
-    mockOk();
-    const result = await checkCdsPublishStatus(
-      "story-1",
-      "tok",
-      "https://content.api.npr.org",
-      "contentful-cds"
-    );
-    expect(result).toBe(true);
-  });
-
-  it("returns false on 404", async () => {
-    mockErr(404);
-    const result = await checkCdsPublishStatus(
-      "story-1",
-      "tok",
-      "https://content.api.npr.org",
-      "contentful-cds"
-    );
-    expect(result).toBe(false);
-  });
-
-  it("constructs URL with prefix-{lowercased-entryId} and Bearer auth", async () => {
-    mockOk();
-    await checkCdsPublishStatus(
-      "Story-ABC",
-      "tok",
-      "https://content.api.npr.org",
-      "custom-prefix"
-    );
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      "https://content.api.npr.org/v1/documents/custom-prefix-story-abc",
-      { headers: { Authorization: "Bearer tok" } }
-    );
   });
 });
 

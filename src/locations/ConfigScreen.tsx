@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import { ConfigAppSDK } from "@contentful/app-sdk";
 import {
   Heading,
@@ -13,13 +13,53 @@ import {
 import { useSDK } from "@contentful/react-apps-toolkit";
 import { AppInstallationParameters } from "../types";
 
+// Parameters registered with type "Secret" on the app definition (see
+// src/tools/update-app-definition.ts). The SDK delivers their stored values
+// redacted as a same-length run of `*`; saving that placeholder back
+// preserves the stored value, so an untouched field never overwrites the
+// real token.
+const SECRET_PARAM_IDS = ["cdsAccessToken", "cdaToken"] as const;
+type SecretParamId = (typeof SECRET_PARAM_IDS)[number];
+
+const isRedactedSecret = (value: unknown): value is string =>
+  typeof value === "string" && /^\*+$/.test(value);
+
+// The installation parameter schema is closed once definitions are registered:
+// Contentful rejects saves containing any undeclared key with a 422. Keep in
+// sync with src/tools/update-app-definition.ts and AppInstallationParameters.
+const KNOWN_PARAM_IDS = [
+  "cdsAccessToken",
+  "cdaToken",
+  "nprServiceId",
+  "cdsEnvironment",
+  "cdsDocumentPrefix",
+  "canonicalUrlTemplate",
+  "audioEmbedUrlTemplate",
+  "locale",
+  "recommendUntilDays",
+  "cdaIncludeDepth",
+  "enableLayout",
+] as const satisfies readonly (keyof AppInstallationParameters)[];
+
 const ConfigScreen = () => {
   const [parameters, setParameters] = useState<AppInstallationParameters>({});
   const sdk = useSDK<ConfigAppSDK>();
+  // Redacted placeholders as loaded from the installation, used to restore
+  // "keep the saved token" when a secret input is cleared.
+  const savedSecretsRef = useRef<Partial<Record<SecretParamId, string>>>({});
 
   const onConfigure = useCallback(async () => {
     const currentState = await sdk.app.getCurrentState();
-    const normalized: AppInstallationParameters = { ...parameters };
+    const normalized: AppInstallationParameters = {};
+    for (const key of KNOWN_PARAM_IDS) {
+      const value = parameters[key];
+      if (value !== undefined) {
+        (normalized as Record<string, unknown>)[key] = value;
+      }
+    }
+    for (const id of SECRET_PARAM_IDS) {
+      if (!normalized[id]) delete normalized[id];
+    }
     if (!normalized.cdsDocumentPrefix?.trim()) {
       delete normalized.cdsDocumentPrefix;
     }
@@ -55,6 +95,21 @@ const ConfigScreen = () => {
     };
   }
 
+  // Clearing a secret input means "keep the saved token", not "delete it":
+  // restore the redacted placeholder so saving preserves the stored value.
+  function updateSecretParameter(parameterName: SecretParamId) {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value =
+        e.target.value || savedSecretsRef.current[parameterName] || "";
+      setParameters({ ...parameters, [parameterName]: value });
+    };
+  }
+
+  const secretInputValue = (parameterName: SecretParamId): string => {
+    const value = parameters[parameterName];
+    return isRedactedSecret(value) ? "" : value || "";
+  };
+
   useEffect(() => {
     sdk.app.onConfigure(onConfigure);
   }, [sdk, onConfigure]);
@@ -65,6 +120,12 @@ const ConfigScreen = () => {
         await sdk.app.getParameters();
 
       if (currentParameters) {
+        for (const id of SECRET_PARAM_IDS) {
+          const value = currentParameters[id];
+          if (isRedactedSecret(value)) {
+            savedSecretsRef.current[id] = value;
+          }
+        }
         setParameters(currentParameters);
       }
 
@@ -79,12 +140,18 @@ const ConfigScreen = () => {
         <FormControl isRequired isInvalid={!parameters.cdsAccessToken}>
           <FormControl.Label>API token</FormControl.Label>
           <TextInput
-            value={parameters.cdsAccessToken || ""}
+            value={secretInputValue("cdsAccessToken")}
             name="cdsAccessToken"
-            onChange={updateParameters("cdsAccessToken")}
+            onChange={updateSecretParameter("cdsAccessToken")}
+            placeholder={
+              isRedactedSecret(parameters.cdsAccessToken)
+                ? "Token saved — enter a new value to replace it"
+                : undefined
+            }
           />
           <FormControl.HelpText>
-            NPR CDS API token with write access.
+            NPR CDS API token with write access. Stored as a secret — it cannot
+            be read back after saving. Leave blank to keep the saved token.
           </FormControl.HelpText>
           {!parameters.cdsAccessToken && (
             <FormControl.ValidationMessage>
@@ -95,14 +162,20 @@ const ConfigScreen = () => {
         <FormControl>
           <FormControl.Label>Contentful Delivery API Token</FormControl.Label>
           <TextInput
-            value={parameters.cdaToken || ""}
+            value={secretInputValue("cdaToken")}
             name="cdaToken"
-            onChange={updateParameters("cdaToken")}
+            onChange={updateSecretParameter("cdaToken")}
+            placeholder={
+              isRedactedSecret(parameters.cdaToken)
+                ? "Token saved — enter a new value to replace it"
+                : undefined
+            }
           />
           <FormControl.HelpText>
             Contentful Content Delivery API (CDA) token. Only published content
             is read through this token when building CDS documents, preventing
             draft changes from leaking to NPR. Required to publish stories.
+            Stored as a secret — leave blank to keep the saved token.
           </FormControl.HelpText>
         </FormControl>
         <FormControl>
