@@ -125,6 +125,10 @@ const EntrySidebar = () => {
   // Monotonic token so only the latest reconcile is allowed to write state —
   // a stale fetch resolving late can't overwrite a newer one.
   const statusTokenRef = useRef(0);
+  // Guards against `setState` after unmount when a reconcile request is still
+  // in flight (the token alone still matches on unmount). Reset to true on
+  // mount so React strict-mode's mount→unmount→remount doesn't leave it false.
+  const isMountedRef = useRef(true);
   const [cdsCollectionIds, setCdsCollectionIds] = useState<string[]>(
     initialNprData?.collectionIds ?? []
   );
@@ -260,7 +264,7 @@ const EntrySidebar = () => {
         },
         { parameters: { action: "checkStatus", entryId: sdk.ids.entry } }
       );
-      if (token !== statusTokenRef.current) return;
+      if (token !== statusTokenRef.current || !isMountedRef.current) return;
       const body = JSON.parse(result.response.body) as {
         published: boolean;
         collectionIds?: string[];
@@ -289,12 +293,20 @@ const EntrySidebar = () => {
         );
       }
     } catch {
-      if (token !== statusTokenRef.current) return;
+      if (token !== statusTokenRef.current || !isMountedRef.current) return;
       setCdsStatus(prev => (prev === "checking" ? "unknown" : prev));
     } finally {
-      if (token === statusTokenRef.current) setStatusReady(true);
+      if (token === statusTokenRef.current && isMountedRef.current)
+        setStatusReady(true);
     }
   }, [sdk.ids, cma]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     reconcileStatus();
